@@ -1,0 +1,383 @@
+#ДЗ 14.012025
+#Развертывание и базовая конфигурация, интерфейсы и инструменты
+#server 1 
+# минимальная установка
+curl https://clickhouse.com/ | sh
+ls ./clickhouse install
+./clickhouse install
+sudo clickhouse start
+clickhouse-client --password asd123
+
+select 1, now();
+			SELECT 1, now()
+
+			Query id: c0f27541-29f8-4126-996b-91f44512f25b
+
+			   --1-T---------------now()-¬
+			1. ¦ 1 ¦ 2025-01-21 12:58:18 ¦
+			   L---+----------------------
+
+			1 row in set. Elapsed: 0.008 sec.
+
+
+# server 2 
+# установка как на проде из репозитория
+sudo -i
+mkdir /clickhouse
+cd /clickhouse/
+sudo apt-get install -y apt-transport-https ca-certificates curl gnupg
+curl -fsSL 'https://packages.clickhouse.com/rpm/lts/repodata/repomd.xml.key' | sudo gpg --dearmor -o /usr/share/keyrings/clickhouse-keyring.gpg
+ARCH=$(dpkg --print-architecture)
+echo "deb [signed-by=/usr/share/keyrings/clickhouse-keyring.gpg arch=${ARCH}] https://packages.clickhouse.com/deb stable main" | sudo tee /etc/apt/sources.list.d/clickhouse.list
+sudo apt-get update
+sudo apt-get install -y clickhouse-server clickhouse-client
+
+systemctl enable clickhouse-server.service
+systemctl start clickhouse-server.service
+systemctl status clickhouse-server.service
+				  clickhouse-server.service - ClickHouse Server (analytic DBMS for big data)
+					 Loaded: loaded (/lib/systemd/system/clickhouse-server.service; enabled; vendor preset: enabled)
+					 Active: active (running) since Tue 2025-01-21 13:10:25 UTC; 3s ago
+				   Main PID: 3884 (clickhouse-serv)
+					  Tasks: 674 (limit: 4559)
+					 Memory: 200.0M
+						CPU: 428ms
+					 CGroup: /system.slice/clickhouse-server.service
+							 +-3882 clickhouse-watchdog "" "" "" "" "" "" "" --config=/etc/clickhouse-server/config.xml --pid-file=/run/clickhouse-server/clic>
+							 L-3884 /usr/bin/clickhouse-server --config=/etc/clickhouse-server/config.xml --pid-file=/run/clickhouse-server/clickhouse-server.>
+							 
+systemctl enable clickhouse-keeper.service
+systemctl start clickhouse-keeper.service
+systemctl status clickhouse-keeper.service
+#Служба кипера без настройки падает
+				? clickhouse-keeper.service - ClickHouse Keeper - zookeeper compatible distributed coordination server
+					 Loaded: loaded (/lib/systemd/system/clickhouse-keeper.service; enabled; vendor preset: enabled)
+					 Active: activating (auto-restart) (Result: exit-code) since Tue 2025-01-21 13:12:30 UTC; 18s ago
+					Process: 4640 ExecStart=/usr/bin/clickhouse-keeper --config=/etc/clickhouse-keeper/keeper_config.xml --pid-file=/run/clickhouse-keeper/cli
+				   Main PID: 4640 (code=exited, status=233/RUNTIME_DIRECTORY)
+						CPU: 60ms
+						
+#Локальные подключения работают
+clickhouse-client 
+			ClickHouse client version 24.12.3.47 (official build).
+			Connecting to localhost:9000 as user default.
+			Password for user (default):
+			Connecting to localhost:9000 as user default.
+			Connected to ClickHouse server version 24.12.3.
+
+			Warnings:
+			 * Maximum number of threads is lower than 30000. There could be problems with handling a lot of simultaneous queries.
+			 * Delay accounting is not enabled, OSIOWaitMicroseconds will not be gathered. You can enable it using `echo 1 > /proc/sys/kernel/task_delayacct` or by using sysctl.
+			 
+# Создание таблицы и заливка датасета
+clickhouse-client --format=Vertical --password asd123
+
+CREATE TABLE trips
+(
+    `trip_id` UInt32,
+    `vendor_id` Enum8('1' = 1, '2' = 2, '3' = 3, '4' = 4, 'CMT' = 5, 'VTS' = 6, 'DDS' = 7, 'B02512' = 10, 'B02598' = 11, 'B02617' = 12, 'B02682' = 13, 'B02764' = 14, '' = 15),
+    `pickup_date` Date,
+    `pickup_datetime` DateTime,
+    `dropoff_date` Date,
+    `dropoff_datetime` DateTime,
+    `store_and_fwd_flag` UInt8,
+    `rate_code_id` UInt8,
+    `pickup_longitude` Float64,
+    `pickup_latitude` Float64,
+    `dropoff_longitude` Float64,
+    `dropoff_latitude` Float64,
+    `passenger_count` UInt8,
+    `trip_distance` Float64,
+    `fare_amount` Float32,
+    `extra` Float32,
+    `mta_tax` Float32,
+    `tip_amount` Float32,
+    `tolls_amount` Float32,
+    `ehail_fee` Float32,
+    `improvement_surcharge` Float32,
+    `total_amount` Float32,
+    `payment_type` Enum8('UNK' = 0, 'CSH' = 1, 'CRE' = 2, 'NOC' = 3, 'DIS' = 4),
+    `trip_type` UInt8,
+    `pickup` FixedString(25),
+    `dropoff` FixedString(25),
+    `cab_type` Enum8('yellow' = 1, 'green' = 2, 'uber' = 3),
+    `pickup_nyct2010_gid` Int8,
+    `pickup_ctlabel` Float32,
+    `pickup_borocode` Int8,
+    `pickup_ct2010` String,
+    `pickup_boroct2010` String,
+    `pickup_cdeligibil` String,
+    `pickup_ntacode` FixedString(4),
+    `pickup_ntaname` String,
+    `pickup_puma` UInt16,
+    `dropoff_nyct2010_gid` UInt8,
+    `dropoff_ctlabel` Float32,
+    `dropoff_borocode` UInt8,
+    `dropoff_ct2010` String,
+    `dropoff_boroct2010` String,
+    `dropoff_cdeligibil` String,
+    `dropoff_ntacode` FixedString(4),
+    `dropoff_ntaname` String,
+    `dropoff_puma` UInt16
+)
+ENGINE = MergeTree
+PARTITION BY toYYYYMM(pickup_date)
+ORDER BY pickup_datetime;
+
+			Query id: 41180053-d4af-48a8-8217-3bacba696bbd
+
+			Ok.
+
+			0 rows in set. Elapsed: 0.023 sec.
+
+
+INSERT INTO trips
+SELECT * FROM s3(
+    'https://datasets-documentation.s3.eu-west-3.amazonaws.com/nyc-taxi/trips_{1..2}.gz',
+    'TabSeparatedWithNames', "
+    `trip_id` UInt32,
+    `vendor_id` Enum8('1' = 1, '2' = 2, '3' = 3, '4' = 4, 'CMT' = 5, 'VTS' = 6, 'DDS' = 7, 'B02512' = 10, 'B02598' = 11, 'B02617' = 12, 'B02682' = 13, 'B02764' = 14, '' = 15),
+    `pickup_date` Date,
+    `pickup_datetime` DateTime,
+    `dropoff_date` Date,
+    `dropoff_datetime` DateTime,
+    `store_and_fwd_flag` UInt8,
+    `rate_code_id` UInt8,
+    `pickup_longitude` Float64,
+    `pickup_latitude` Float64,
+    `dropoff_longitude` Float64,
+    `dropoff_latitude` Float64,
+    `passenger_count` UInt8,
+    `trip_distance` Float64,
+    `fare_amount` Float32,
+    `extra` Float32,
+    `mta_tax` Float32,
+    `tip_amount` Float32,
+    `tolls_amount` Float32,
+    `ehail_fee` Float32,
+    `improvement_surcharge` Float32,
+    `total_amount` Float32,
+    `payment_type` Enum8('UNK' = 0, 'CSH' = 1, 'CRE' = 2, 'NOC' = 3, 'DIS' = 4),
+    `trip_type` UInt8,
+    `pickup` FixedString(25),
+    `dropoff` FixedString(25),
+    `cab_type` Enum8('yellow' = 1, 'green' = 2, 'uber' = 3),
+    `pickup_nyct2010_gid` Int8,
+    `pickup_ctlabel` Float32,
+    `pickup_borocode` Int8,
+    `pickup_ct2010` String,
+    `pickup_boroct2010` String,
+    `pickup_cdeligibil` String,
+    `pickup_ntacode` FixedString(4),
+    `pickup_ntaname` String,
+    `pickup_puma` UInt16,
+    `dropoff_nyct2010_gid` UInt8,
+    `dropoff_ctlabel` Float32,
+    `dropoff_borocode` UInt8,
+    `dropoff_ct2010` String,
+    `dropoff_boroct2010` String,
+    `dropoff_cdeligibil` String,
+    `dropoff_ntacode` FixedString(4),
+    `dropoff_ntaname` String,
+    `dropoff_puma` UInt16
+") SETTINGS input_format_try_infer_datetimes = 0;
+
+			Query id: 58bf7801-128b-4806-b31c-cc259f23ac89
+			Ok.
+			0 rows in set. Elapsed: 60.769 sec. Processed 2.00 million rows, 163.07 MB (32.91 thousand rows/s., 2.68 MB/s.)
+			Peak memory usage: 904.74 MiB.
+
+
+# Максимальная дистанция путешествия
+select max(trip_distance) from trips;
+			Query id: 71ef46c4-525e-42a2-8079-b0f43c66dde3
+
+			   --max(trip_distance)-¬
+			1. ¦          1670156.3 ¦ -- 1.67 million
+
+select payment_type, count() from trips group by payment_type order by count() desc;
+Query id: a641123a-dd62-4b81-9324-1dd76c2155fe
+
+			   --payment_type-T-count()-¬
+			1. ¦ CSH          ¦ 1232637          ¦
+			2. ¦ CRE          ¦  757481            ¦
+			3. ¦ NOC          ¦    6990            ¦
+			4. ¦ DIS          ¦    2549              ¦
+			   L--------------+----------
+
+4 rows in set. Elapsed: 0.020 sec. Processed 2.00 million rows, 2.00 MB (100.94 million rows/s., 100.94 MB/s.)
+Peak memory usage: 0.00 B.
+
+# Тестирование производительности базовой установки без настройки
+ echo "SELECT * FROM system.numbers LIMIT 1000000 OFFSET 1000000" | clickhouse-benchmark --password asd123 --host=localhost --port=9000 -i 10
+
+			Queries executed: 10.
+
+			localhost:9000, queries: 10, QPS: 4.949, RPS: 98983270.962, MiB/s: 755.182, result RPS: 49491635.481, result MiB/s: 377.591.
+
+			0%              0.180 sec.
+			10%             0.181 sec.
+			20%             0.182 sec.
+			30%             0.186 sec.
+			40%             0.188 sec.
+			50%             0.189 sec.
+			60%             0.189 sec.
+			70%             0.190 sec.
+			80%             0.194 sec.
+			90%             0.207 sec.
+			95%             0.212 sec.
+			99%             0.212 sec.
+			99.9%           0.212 sec.
+			99.99%          0.212 sec.
+
+ echo "SELECT * FROM trips LIMIT 100000 OFFSET 100000" | clickhouse-benchmark --password asd123 --host=localhost --port=9000 -i 10
+
+				Queries executed: 10.
+
+				localhost:9000, queries: 10, QPS: 1.840, RPS: 385013.180, MiB/s: 112.930, result RPS: 183996.741, result MiB/s: 53.973.
+
+				0%              0.224 sec.
+				10%             0.253 sec.
+				20%             0.264 sec.
+				30%             0.379 sec.
+				40%             0.407 sec.
+				50%             0.504 sec.
+				60%             0.504 sec.
+				70%             0.538 sec.
+				80%             0.548 sec.
+				90%             0.693 sec.
+				95%             1.151 sec.
+				99%             1.151 sec.
+				99.9%           1.151 sec.
+				99.99%          1.151 sec.
+
+# Настройка системы для работы с БД
+cat /etc/os-release
+			PRETTY_NAME="Ubuntu 22.04 LTS"
+
+# Максимальное количество открытых файлов
+ulimit -n
+			1024
+sysctl -w fs.file-max=100001
+cat /proc/sys/fs/file-max
+			100001
+vi /etc/sysctl.conf
+fs.file-max = 100002
+# максимальный объём разделяемой памяти
+sysctl kernel.shmmax
+			kernel.shmmax = 18446744073692774399
+# Отключение Transparent Huge Pages (THP)
+echo never > /sys/kernel/mm/transparent_hugepage/enabled
+
+vim /etc/default/grub
+GRUB_CMDLINE_LINUX_DEFAULT="transparent_hugepage=never"
+update-grub
+
+# Настройка I/O планировщика 
+# https://habr.com/ru/companies/oleg-bunin/articles/459444/
+# https://blog.programs74.ru/how-to-enable-mq-deadline-or-bfq-in-ubuntu/
+vim /etc/default/grub
+GRUB_CMDLINE_LINUX_DEFAULT="transparent_hugepage=never scsi_mod.use_blk_mq=1 dm_mod.use_blk_mq=1"
+update-grub
+echo "mq-deadline" >> /etc/initramfs-tools/modules
+echo "bfq" >> /etc/initramfs-tools/modules
+echo "kyber-iosched" >> /etc/initramfs-tools/modules
+cat /etc/initramfs-tools/modules
+			mq-deadline
+			bfq
+			kyber-iosched
+reboot
+
+-----
+# добавил ядер до в 8 
+---------------------
+# После перезапуска click запустился во много потоков
+pgrep -l clickhouse
+			893 clickhouse-serv
+pstree -p 893 | wc -l
+			714
+--------------------
+echo "ACTION==\"add|change\", KERNEL==\"sda\", ATTR{queue/rotational}=\"0\", ATTR{queue/scheduler}=\"mq-deadline\"" > /etc/udev/rules.d/60-schedulers.rules
+mv /etc/udev/rules.d/70-snap.snapd.rules ~/
+mv /etc/udev/rules.d/ubuntu--vg-ubuntu--lv.rules ~/
+udevadm control --reload
+udevadm trigger
+
+# Запуск тестов
+
+ echo "SELECT * FROM trips LIMIT 100000 OFFSET 100000" | clickhouse-benchmark --password asd123 --host=localhost --port=9000 -i 10
+
+				Queries executed: 10.
+
+			localhost:9000, queries: 10, QPS: 1.758, RPS: 359930.744, MiB/s: 105.383, result RPS: 175813.536, result MiB/s: 51.452.
+			0%              0.147 sec.
+			10%             0.165 sec.
+			20%             0.191 sec.
+			30%             0.194 sec.
+			40%             0.209 sec.
+			50%             0.242 sec.
+			60%             0.242 sec.
+			70%             0.243 sec.
+			80%             0.360 sec.
+			90%             1.566 sec.
+			95%             1.917 sec.
+			99%             1.917 sec.
+			99.9%           1.917 sec.
+			99.99%          1.917 sec.
+
+# Система сильно тормозила после остановки мержей тест прошёл в 10 раз быстрее;
+system stop merges 
+
+			Queries executed: 10.
+
+			localhost:9000, queries: 10, QPS: 5.095, RPS: 1043052.166, MiB/s: 305.392, result RPS: 509494.373, result MiB/s: 149.103.
+
+			0%              0.151 sec.
+			10%             0.156 sec.
+			20%             0.159 sec.
+			30%             0.161 sec.
+			40%             0.168 sec.
+			50%             0.183 sec.
+			60%             0.183 sec.
+			70%             0.184 sec.
+			80%             0.186 sec.
+			90%             0.192 sec.
+			95%             0.257 sec.
+			99%             0.257 sec.
+			99.9%           0.257 sec.
+			99.99%          0.257 sec.
+# В конфиг добавил строки для ограничение количества мержей партов
+vim /etc/clickhouse-server/config.d/bench_config.xml
+        <background_pool_size>1</background_pool_size>
+
+# Посмотрел системную таблицу мержей 
+ select * from system.merges;\G
+
+SELECT
+    database,
+    `table`,
+    progress,
+    elapsed,
+    is_mutation,
+    memory_usage
+FROM system.merges
+
+Query id: 7744e579-2a1f-402f-891b-324f2816131c
+
+   --database-T-table------T-progress-T-----elapsed-T-is_mutation-T-memory_usage-¬
+1. ¦ system   ¦ metric_log ¦        0 ¦ 2.948904929 ¦           0 ¦   1015537979 ¦
+2. ¦ system   ¦ metric_log ¦        0 ¦ 0.430894862 ¦           0 ¦     46321984 ¦
+   L----------+------------+----------+-------------+-------------+---------------
+
+2 rows in set. Elapsed: 0.053 sec.
+
+ 
+# постоянно мержится системная таблица
+table:                         metric_log
+# как только начинаются  мержи даже в один поток скорость тестов сильно падает
+
+			Queries executed: 10.
+
+			localhost:9000, queries: 10, QPS: 0.909, RPS: 186175.861, MiB/s: 54.510, result RPS: 90940.373, result MiB/s: 26.614.
+			99.99%          1.500 sec.
+
