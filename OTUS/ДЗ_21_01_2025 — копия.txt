@@ -1,0 +1,193 @@
+#ДЗ 21.012025
+#Язык запросов SQL
+
+# создание базы
+clickhouse-client  --password asd123
+create database test_database;
+			Query id: b8264c81-b5d3-4f5a-98c4-72ce74eddfa6
+
+			Ok.
+
+			0 rows in set. Elapsed: 0.158 sec.
+
+SHOW CREATE DATABASE test_database;\G
+
+			Query id: 1b580171-b1ab-412e-937d-b837d46ebab3
+
+			Row 1:
+			------
+			statement: CREATE DATABASE test_database
+			ENGINE = Atomic
+
+			1 row in set. Elapsed: 0.024 sec.
+
+
+# Создание таблицы
+use test_database;
+CREATE TABLE restaurant_menu (
+    id UInt64, -- Уникальный идентификатор меню
+    dish_name String, -- Наименование блюда
+    category LowCardinality(String), -- Категория блюда (например, закуски, основные блюда, десерты)
+    description Nullable(String), -- Описание блюда
+    price Decimal(10, 2), -- Цена блюда
+    calories Nullable(UInt16), -- Количество калорий в блюде
+    ingredients Array(String), -- Ингредиенты блюда
+    is_vegetarian Bool, -- Флаг, является ли блюдо вегетарианским (0 - нет, 1 - да)
+    is_available Bool, -- Флаг, доступно ли блюдо в данный момент (0 - нет, 1 - да)
+    created_at DateTime -- Дата создания блюда
+) ENGINE = MergeTree()
+PRIMARY KEY (category)
+ORDER BY (category, dish_name, price, created_at);
+
+show tables;
+
+# Вставка данных
+
+INSERT INTO restaurant_menu (id, dish_name, category, description, price, calories, ingredients, is_vegetarian, is_available, created_at) 
+VALUES 
+(1, 'Caesar Salad', 'Salads', 'Traditional Caesar salad with romaine lettuce, croutons, Parmesan cheese, and Caesar dressing', 9.99, 250, ['Romaine lettuce', 'Croutons', 'Parmesan cheese', 'Caesar dressing'], 0, 1, '2022-01-01 12:00:00'),
+(2, 'Margherita Pizza', 'Pizzas', 'Classic Margherita pizza with tomato sauce, mozzarella cheese, and fresh basil', 12.99, 800, ['Tomato sauce', 'Mozzarella cheese', 'Fresh basil'], 1, 1, '2022-01-01 13:00:00'),
+(3, 'Fettuccine Alfredo', 'Pasta', 'Creamy Alfredo sauce with fettuccine pasta', 11.99, 600, ['Alfredo sauce', 'Fettuccine pasta'], 0, 1, '2022-01-01 14:00:00'),
+(4, 'Beef Burger', 'Burgers', 'Juicy beef patty with cheddar cheese, lettuce, tomato, and onion on a toasted bun', 8.99, 700, ['Beef patty', 'Cheddar cheese', 'Lettuce', 'Tomato', 'Onion', 'Bun'], 0, 1, '2022-01-01 15:00:00'),
+(5, 'Cheesecake', 'Desserts', 'Creamy cheesecake with graham cracker crust and strawberry topping', 6.99, 400, ['Cream cheese', 'Graham crackers', 'Strawberries'], 1, 1, '2022-01-01 16:00:00'),
+(6, 'Caprese Salad', 'Salads', 'Fresh Caprese salad with tomatoes, mozzarella cheese, basil, and balsamic glaze', 8.99, 300, ['Tomatoes', 'Mozzarella cheese', 'Fresh basil', 'Balsamic glaze'], 1, 1, '2022-01-01 17:00:00'),
+(7, 'Spaghetti Bolognese', 'Pasta', 'Spaghetti pasta with hearty Bolognese sauce made with ground beef, tomatoes, and herbs', 10.99, 700, ['Spaghetti pasta', 'Ground beef', 'Tomatoes', 'Herbs'], 0, 1, '2022-01-01 18:00:00'),
+(8, 'Margarita Cocktail', 'Drinks', 'Classic margarita cocktail made with tequila, triple sec, lime juice, and salt', 7.99, 250, ['Tequila', 'Triple sec', 'Lime juice', 'Salt'], 0, 1, '2022-01-01 19:00:00'),
+(9, 'Vegetable Stir Fry', 'Vegetarian', 'Mixed vegetables stir-fried in soy sauce and served over rice', 9.99, 500, ['Mixed vegetables', 'Soy sauce', 'Rice'], 1, 1, '2022-01-01 20:00:00'),
+(10, 'Chicken Parmesan', 'Main Courses', 'Breaded chicken cutlets topped with marinara sauce and melted mozzarella cheese', 12.99, 800, ['Chicken cutlets', 'Marinara sauce', 'Mozzarella cheese'], 0, 1, '2022-01-01 21:00:00'),
+(11, 'Frozen Yogurt', 'Desserts', 'Creamy frozen yogurt with assorted toppings', 5.99, 300, ['Frozen yogurt', 'Assorted toppings'], 1, 1, '2022-01-01 22:00:00'),
+(12, 'Shrimp Tacos', 'Tacos', 'Delicious shrimp tacos with cabbage slaw, avocado, and lime crema', 10.99, 600, ['Shrimp', 'Cabbage slaw', 'Avocado', 'Lime crema'], 0, 1, '2022-01-01 23:00:00'),
+(13, 'Mushroom Risotto', 'Risotto', 'Creamy mushroom risotto made with Arborio rice, mushrooms, and Parmesan cheese', 11.99, 700, ['Arborio rice', 'Mushrooms', 'Parmesan cheese'], 1, 1, '2022-01-02 12:00:00'),
+(14, 'Garlic Bread', 'Appetizers', 'Toasted garlic bread brushed with olive oil and herbs', 3.99, 200, ['Garlic bread', 'Olive oil', 'Herbs'], 1, 1, '2022-01-02 13:00:00'),
+(15, 'Tiramisu', 'Desserts', 'Classic Italian dessert made with ladyfingers, espresso, mascarpone cheese, and cocoa powder', 7.99, 400, ['Ladyfingers', 'Espresso', 'Mascarpone cheese', 'Cocoa powder'], 0, 1, '2022-01-02 14:00:00'),
+(16, 'Lemonade', 'Drinks', 'Refreshing lemonade made with freshly squeezed lemons, sugar, and ice', 3.99, 150, ['Freshly squeezed lemons', 'Sugar', 'Ice'], 1, 1, '2022-01-02 15:00:00'),
+(17, 'Vegetable Lasagna', 'Vegetarian', 'Layers of pasta, cheese, and assorted vegetables baked to perfection', 9.99, 600, ['Pasta', 'Cheese', 'Assorted vegetables'], 1, 1, '2022-01-02 16:00:00'),
+(18, 'Fish and Chips', 'Seafood', 'Crispy beer-battered fish served with fries and tartar sauce', 10.99, 800, ['Beer-battered fish', 'Fries', 'Tartar sauce'], 0, 1, '2022-01-02 17:00:00'),
+(19, 'Chocolate Cake', 'Desserts', 'Decadent chocolate cake with chocolate frosting and sprinkles', 6.99, 500, ['Chocolate cake', 'Chocolate frosting', 'Sprinkles'], 0, 1, '2022-01-02 18:00:00'),
+(20, 'Beef Tacos', 'Tacos', 'Spicy beef tacos with salsa, lettuce, and cheese', 8.99, 700, ['Beef', 'Salsa', 'Lettuce', 'Cheese'], 0, 1, '2022-01-02 19:00:00'),
+(21, 'Mojito', 'Drinks', 'Classic mojito cocktail made with rum, mint leaves, lime juice, sugar, and soda water', 8.99, 200, ['Rum', 'Mint leaves', 'Lime juice', 'Sugar', 'Soda water'], 0, 1, '2022-01-02 20:00:00'),
+(22, 'Caprese Panini', 'Sandwiches', 'Grilled panini with fresh mozzarella, tomatoes, basil, and balsamic glaze', 7.99, 400, ['Fresh mozzarella', 'Tomatoes', 'Basil', 'Balsamic glaze'], 1, 1, '2022-01-02 21:00:00'),
+(23, 'Poutine', 'Appetizers', 'Canadian dish consisting of French fries topped with cheese curds and gravy', 5.99, 500, ['French fries', 'Cheese curds', 'Gravy'], 0, 1, '2022-01-02 22:00:00'),
+(24, 'Chicken Caesar Wrap', 'Wraps', 'Grilled chicken, romaine lettuce, Parmesan cheese, and Caesar dressing wrapped in a flour tortilla', 6.99, 450, ['Grilled chicken', 'Romaine lettuce', 'Parmesan cheese', 'Caesar dressing', 'Flour tortilla'], 0, 1, '2022-01-02 23:00:00'),
+(25, 'Pad Thai', 'Asian', 'Stir-fried rice noodles with tofu, shrimp, peanuts, bean sprouts, and lime', 10.99, 600, ['Rice noodles', 'Tofu', 'Shrimp', 'Peanuts', 'Bean sprouts', 'Lime'], 1, 1, '2022-01-03 12:00:00'),
+(26, 'Chicken Wings', 'Appetizers', 'Crispy chicken wings tossed in your choice of sauce (buffalo, barbecue, or honey mustard)', 8.99, 800, ['Chicken wings', 'Buffalo sauce', 'Barbecue sauce', 'Honey mustard'], 0, 1, '2022-01-03 13:00:00'),
+(27, 'Beef Stroganoff', 'Main Courses', 'Tender beef strips cooked in a creamy mushroom sauce and served over egg noodles', 12.99, 700, ['Beef strips', 'Mushroom sauce', 'Egg noodles'], 0, 1, '2022-01-03 14:00:00'),
+(28, 'Fruit Salad', 'Salads', 'Fresh fruit salad with a mix of seasonal fruits and a honey-lime dressing', 6.99, 200, ['Seasonal fruits', 'Honey-lime dressing'], 1, 1, '2022-01-03 15:00:00'),
+(29, 'Pesto Pasta', 'Pasta', 'Pasta tossed in a flavorful pesto sauce made with basil, garlic, pine nuts, and Parmesan cheese', 9.99, 600, ['Pasta', 'Pesto sauce', 'Basil', 'Garlic', 'Pine nuts', 'Parmesan cheese'], 1, 1, '2022-01-03 16:00:00'),
+(30, 'Mango Lassi', 'Drinks', 'Refreshing Indian drink made with yogurt, mango, and cardamom', 4.99, 250, ['Yogurt', 'Mango', 'Cardamom'], 1, 1, '2022-01-03 17:00:00'),
+(31, 'Pulled Pork Sandwich', 'Sandwiches', 'Slow-cooked pulled pork topped with coleslaw and barbecue sauce on a toasted bun', 9.99, 700, ['Pulled pork', 'Coleslaw', 'Barbecue sauce', 'Toasted bun'], 0, 1, '2022-01-03 18:00:00'),
+(32, 'Fish Tacos', 'Tacos', 'Grilled fish tacos with cabbage slaw, avocado, and chipotle crema', 11.99, 600, ['Grilled fish', 'Cabbage slaw', 'Avocado', 'Chipotle crema'], 0, 1, '2022-01-03 19:00:00'),
+(33, 'Margarita Pizza', 'Pizzas', 'Classic Margherita pizza with tomato sauce, mozzarella cheese, and fresh basil', 12.99, 800, ['Tomato sauce', 'Mozzarella cheese', 'Fresh basil'], 1, 1, '2022-01-03 20:00:00'),
+(34, 'Chicken Tikka Masala', 'Indian', 'Tender chicken in a creamy tomato-based sauce with traditional Indian spices', 13.99, 700, ['Chicken', 'Tomato-based sauce', 'Indian spices'], 0, 1, '2022-01-03 21:00:00'),
+(35, 'Biscuits and Gravy', 'Breakfast', 'Flaky biscuits smothered in savory sausage gravy', 5.99, 500, ['Biscuits', 'Sausage gravy'], 0, 1, '2022-01-03 22:00:00'),
+(36, 'Beef Tacos', 'Tacos', 'Spicy beef tacos with salsa, lettuce, and cheese', 8.99, 700, ['Beef', 'Salsa', 'Lettuce', 'Cheese'], 0, 1, '2022-01-03 23:00:00'),
+(37, 'Chicken Alfredo', 'Pasta', 'Creamy Alfredo sauce with grilled chicken and fettuccine pasta', 11.99, 800, ['Alfredo sauce', 'Grilled chicken', 'Fettuccine pasta'], 0, 1, '2022-01-04 12:00:00'),
+(38, 'Margherita Flatbread', 'Appetizers', 'Thin crust flatbread with tomato sauce, mozzarella cheese, and fresh basil', 6.99, 400, ['Tomato sauce', 'Mozzarella cheese', 'Fresh basil'], 1, 1, '2022-01-04 13:00:00'),
+(39, 'Chocolate Chip Cookies', 'Desserts', 'Warm chocolate chip cookies served with vanilla ice cream', 5.99, 300, ['Chocolate chip cookies', 'Vanilla ice cream'], 1, 1, '2022-01-04 14:00:00'),
+(40, 'Mint Julep', 'Drinks', 'Refreshing mint julep cocktail made with bourbon, mint, sugar, and water', 8.99, 250, ['Bourbon', 'Mint', 'Sugar', 'Water'], 0, 1, '2022-01-04 15:00:00'),
+(41, 'Vegetable Pizza', 'Pizzas', 'Vegetarian pizza with assorted vegetables, tomato sauce, and mozzarella cheese', 10.99, 600, ['Assorted vegetables', 'Tomato sauce', 'Mozzarella cheese'], 1, 1, '2022-01-04 16:00:00'),
+(42, 'Beef Lo Mein', 'Asian', 'Stir-fried noodles with beef, vegetables, and a savory sauce', 11.99, 700, ['Noodles', 'Beef', 'Vegetables', 'Savory sauce'], 0, 1, '2022-01-04 17:00:00'),
+(43, 'Spinach and Feta Salad', 'Salads', 'Healthy salad with fresh spinach, feta cheese, almonds, and balsamic vinaigrette', 7.99, 250, ['Fresh spinach', 'Feta cheese', 'Almonds', 'Balsamic vinaigrette'], 1, 1, '2022-01-04 18:00:00'),
+(44, 'Chicken Shawarma Wrap', 'Wraps', 'Tender grilled chicken wrapped in pita bread with lettuce, tomatoes, onions, and tahini sauce', 9.99, 500, ['Grilled chicken', 'Pita bread', 'Lettuce', 'Tomatoes', 'Onions', 'Tahini sauce'], 0, 1, '2022-01-04 19:00:00'),
+(45, 'Sushi Rolls', 'Sushi', 'Assorted sushi rolls with fresh fish, avocado, and soy sauce', 13.99, 600, ['Fresh fish', 'Avocado', 'Soy sauce'], 1, 1, '2022-01-04 20:00:00'),
+(46, 'Mojito', 'Drinks', 'Classic mojito cocktail made with rum, mint leaves, lime juice, sugar, and soda water', 8.99, 200, ['Rum', 'Mint leaves', 'Lime juice', 'Sugar', 'Soda water'], 0, 1, '2022-01-04 21:00:00'),
+(47, 'Chicken Katsu', 'Asian', 'Crispy fried chicken cutlets served with rice, cabbage salad, and tonkatsu sauce', 12.99, 800, ['Fried chicken cutlets', 'Rice', 'Cabbage salad', 'Tonkatsu sauce'], 0, 1, '2022-01-04 22:00:00'),
+(48, 'Cheeseburger Sliders', 'Appetizers', 'Mini cheeseburgers with lettuce, tomato, pickles, and ketchup', 7.99, 400, ['Mini cheeseburgers', 'Lettuce', 'Tomato', 'Pickles', 'Ketchup'], 0, 1, '2022-01-04 23:00:00'),
+(49, 'Shrimp Fried Rice', 'Asian', 'Stir-fried rice with shrimp, vegetables, and soy sauce', 10.99, 600, ['Rice', 'Shrimp', 'Vegetables', 'Soy sauce'], 0, 1, '2022-01-05 12:00:00'),
+(50, 'Churros', 'Desserts', 'Crispy fried churros coated in cinnamon sugar and served with chocolate dipping sauce', 5.99, 300, ['Churros', 'Cinnamon sugar', 'Chocolate dipping sauce'], 1, 1, '2022-01-05 13:00:00');
+
+ALTER TABLE restaurant_menu drop column id;
+ALTER TABLE restaurant_menu ADD column updated_at DateTime;
+ALTER TABLE restaurant_menu ADD column id FIRST ;
+
+
+CREATE TABLE restaurant_menu2 (
+    id UInt64, -- Уникальный идентификатор меню
+    dish_name String, -- Наименование блюда
+    category LowCardinality(String), -- Категория блюда (например, закуски, основные блюда, десерты)
+    description Nullable(String), -- Описание блюда
+    price Decimal(10, 2), -- Цена блюда
+    calories Nullable(UInt16), -- Количество калорий в блюде
+    ingredients Array(String), -- Ингредиенты блюда
+    is_vegetarian Bool, -- Флаг, является ли блюдо вегетарианским (0 - нет, 1 - да)
+    is_available Bool, -- Флаг, доступно ли блюдо в данный момент (0 - нет, 1 - да)
+    created_at DateTime -- Дата создания блюда
+) ENGINE = MergeTree()
+PARTITION BY (category, created_at)
+PRIMARY KEY (dish_name, ingredients)
+ORDER BY (dish_name, ingredients, price, created_at);
+;
+
+ALTER TABLE restaurant_menu2 ADD column updated_at DateTime AFTER created_at;
+
+insert into restaurant_menu2 (id
+, dish_name
+, category
+, price
+, calories
+, ingredients
+, is_vegetarian
+, is_available
+, created_at
+, updated_at)
+
+select 
+id
+, dish_name
+, category
+, price
+, calories
+, ingredients
+, is_vegetarian
+, is_available
+, created_at
+, updated_at
+FROM restaurant_menu;
+
+INSERT INTO restaurant_menu2 SELECT restaurant_menu;
+
+ insert into restaurant_menu2 (id
+, dish_name
+, category
+, price
+, calories
+, ingredients
+, is_vegetarian
+, is_available
+, created_at
+, updated_at)
+
+select
+id
+, dish_name
+, category
+, price
+, calories
+, ingredients
+, is_vegetarian
+, is_available
+, created_at
+, updated_at
+FROM restaurant_menu;
+
+CREATE VIEW uniq_dishes as SELECT distinct dish_name, ingredients FROM restaurant_menu2 order by dish_name, ingredients;
+
+CREATE MATERIALIZED VIEW uniq_dishes TO
+TO uniq_dishes_tb
+ as SELECT  distinct dish_name, ingredients FROM restaurant_menu2 order by dish_name, ingredients;
+
+CREATE TABLE uniq_dishes_tb (
+    dish_name String, -- Наименование блюда
+    ingredients Array(String) -- Ингредиенты блюда
+) ENGINE = MergeTree()
+PRIMARY KEY (dish_name, ingredients)
+ORDER BY (dish_name, ingredients,);
+;
+
+CREATE MATERIALIZED VIEW uniq_dishes 
+REFRESH EVERY 1 MINUTE
+ENGINE = MergeTree()
+order by dish_name
+as SELECT  distinct dish_name, ingredients FROM restaurant_menu2 order by dish_name, ingredients;
+
+
