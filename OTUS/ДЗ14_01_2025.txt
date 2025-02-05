@@ -1,7 +1,7 @@
-#ДЗ 14.012025
-#Развертывание и базовая конфигурация, интерфейсы и инструменты
+#Р”Р— 14.012025
+#Р Р°Р·РІРµСЂС‚С‹РІР°РЅРёРµ Рё Р±Р°Р·РѕРІР°СЏ РєРѕРЅС„РёРіСѓСЂР°С†РёСЏ, РёРЅС‚РµСЂС„РµР№СЃС‹ Рё РёРЅСЃС‚СЂСѓРјРµРЅС‚С‹
 #server 1 
-# минимальная установка
+# РјРёРЅРёРјР°Р»СЊРЅР°СЏ СѓСЃС‚Р°РЅРѕРІРєР°
 curl https://clickhouse.com/ | sh
 ls ./clickhouse install
 ./clickhouse install
@@ -13,15 +13,15 @@ select 1, now();
 
 			Query id: c0f27541-29f8-4126-996b-91f44512f25b
 
-			   --1-T---------------now()-¬
-			1. ¦ 1 ¦ 2025-01-21 12:58:18 ¦
+			   --1-T---------------now()-В¬
+			1. В¦ 1 В¦ 2025-01-21 12:58:18 В¦
 			   L---+----------------------
 
 			1 row in set. Elapsed: 0.008 sec.
 
 
 # server 2 
-# установка как на проде из репозитория
+# СѓСЃС‚Р°РЅРѕРІРєР° РєР°Рє РЅР° РїСЂРѕРґРµ РёР· СЂРµРїРѕР·РёС‚РѕСЂРёСЏ
 sudo -i
 mkdir /clickhouse
 cd /clickhouse/
@@ -49,7 +49,7 @@ systemctl status clickhouse-server.service
 systemctl enable clickhouse-keeper.service
 systemctl start clickhouse-keeper.service
 systemctl status clickhouse-keeper.service
-#Служба кипера без настройки падает
+#РЎР»СѓР¶Р±Р° РєРёРїРµСЂР° Р±РµР· РЅР°СЃС‚СЂРѕР№РєРё РїР°РґР°РµС‚
 				? clickhouse-keeper.service - ClickHouse Keeper - zookeeper compatible distributed coordination server
 					 Loaded: loaded (/lib/systemd/system/clickhouse-keeper.service; enabled; vendor preset: enabled)
 					 Active: activating (auto-restart) (Result: exit-code) since Tue 2025-01-21 13:12:30 UTC; 18s ago
@@ -57,7 +57,7 @@ systemctl status clickhouse-keeper.service
 				   Main PID: 4640 (code=exited, status=233/RUNTIME_DIRECTORY)
 						CPU: 60ms
 						
-#Локальные подключения работают
+#Р›РѕРєР°Р»СЊРЅС‹Рµ РїРѕРґРєР»СЋС‡РµРЅРёСЏ СЂР°Р±РѕС‚Р°СЋС‚
 clickhouse-client 
 			ClickHouse client version 24.12.3.47 (official build).
 			Connecting to localhost:9000 as user default.
@@ -69,7 +69,7 @@ clickhouse-client
 			 * Maximum number of threads is lower than 30000. There could be problems with handling a lot of simultaneous queries.
 			 * Delay accounting is not enabled, OSIOWaitMicroseconds will not be gathered. You can enable it using `echo 1 > /proc/sys/kernel/task_delayacct` or by using sysctl.
 			 
-# Создание таблицы и заливка датасета
+# РЎРѕР·РґР°РЅРёРµ С‚Р°Р±Р»РёС†С‹ Рё Р·Р°Р»РёРІРєР° РґР°С‚Р°СЃРµС‚Р°
 clickhouse-client --format=Vertical --password asd123
 
 CREATE TABLE trips
@@ -188,27 +188,27 @@ SELECT * FROM s3(
 			Peak memory usage: 904.74 MiB.
 
 
-# Максимальная дистанция путешествия
+# РњР°РєСЃРёРјР°Р»СЊРЅР°СЏ РґРёСЃС‚Р°РЅС†РёСЏ РїСѓС‚РµС€РµСЃС‚РІРёСЏ
 select max(trip_distance) from trips;
 			Query id: 71ef46c4-525e-42a2-8079-b0f43c66dde3
 
-			   --max(trip_distance)-¬
-			1. ¦          1670156.3 ¦ -- 1.67 million
+			   --max(trip_distance)-В¬
+			1. В¦          1670156.3 В¦ -- 1.67 million
 
 select payment_type, count() from trips group by payment_type order by count() desc;
 Query id: a641123a-dd62-4b81-9324-1dd76c2155fe
 
-			   --payment_type-T-count()-¬
-			1. ¦ CSH          ¦ 1232637          ¦
-			2. ¦ CRE          ¦  757481            ¦
-			3. ¦ NOC          ¦    6990            ¦
-			4. ¦ DIS          ¦    2549              ¦
+			   --payment_type-T-count()-В¬
+			1. В¦ CSH          В¦ 1232637          В¦
+			2. В¦ CRE          В¦  757481            В¦
+			3. В¦ NOC          В¦    6990            В¦
+			4. В¦ DIS          В¦    2549              В¦
 			   L--------------+----------
 
 4 rows in set. Elapsed: 0.020 sec. Processed 2.00 million rows, 2.00 MB (100.94 million rows/s., 100.94 MB/s.)
 Peak memory usage: 0.00 B.
 
-# Тестирование производительности базовой установки без настройки
+# РўРµСЃС‚РёСЂРѕРІР°РЅРёРµ РїСЂРѕРёР·РІРѕРґРёС‚РµР»СЊРЅРѕСЃС‚Рё Р±Р°Р·РѕРІРѕР№ СѓСЃС‚Р°РЅРѕРІРєРё Р±РµР· РЅР°СЃС‚СЂРѕР№РєРё
  echo "SELECT * FROM system.numbers LIMIT 1000000 OFFSET 1000000" | clickhouse-benchmark --password asd123 --host=localhost --port=9000 -i 10
 
 			Queries executed: 10.
@@ -251,11 +251,11 @@ Peak memory usage: 0.00 B.
 				99.9%           1.151 sec.
 				99.99%          1.151 sec.
 
-# Настройка системы для работы с БД
+# РќР°СЃС‚СЂРѕР№РєР° СЃРёСЃС‚РµРјС‹ РґР»СЏ СЂР°Р±РѕС‚С‹ СЃ Р‘Р”
 cat /etc/os-release
 			PRETTY_NAME="Ubuntu 22.04 LTS"
 
-# Максимальное количество открытых файлов
+# РњР°РєСЃРёРјР°Р»СЊРЅРѕРµ РєРѕР»РёС‡РµСЃС‚РІРѕ РѕС‚РєСЂС‹С‚С‹С… С„Р°Р№Р»РѕРІ
 ulimit -n
 			1024
 sysctl -w fs.file-max=100001
@@ -263,17 +263,17 @@ cat /proc/sys/fs/file-max
 			100001
 vi /etc/sysctl.conf
 fs.file-max = 100002
-# максимальный объём разделяемой памяти
+# РјР°РєСЃРёРјР°Р»СЊРЅС‹Р№ РѕР±СЉС‘Рј СЂР°Р·РґРµР»СЏРµРјРѕР№ РїР°РјСЏС‚Рё
 sysctl kernel.shmmax
 			kernel.shmmax = 18446744073692774399
-# Отключение Transparent Huge Pages (THP)
+# РћС‚РєР»СЋС‡РµРЅРёРµ Transparent Huge Pages (THP)
 echo never > /sys/kernel/mm/transparent_hugepage/enabled
 
 vim /etc/default/grub
 GRUB_CMDLINE_LINUX_DEFAULT="transparent_hugepage=never"
 update-grub
 
-# Настройка I/O планировщика 
+# РќР°СЃС‚СЂРѕР№РєР° I/O РїР»Р°РЅРёСЂРѕРІС‰РёРєР° 
 # https://habr.com/ru/companies/oleg-bunin/articles/459444/
 # https://blog.programs74.ru/how-to-enable-mq-deadline-or-bfq-in-ubuntu/
 vim /etc/default/grub
@@ -289,9 +289,9 @@ cat /etc/initramfs-tools/modules
 reboot
 
 -----
-# добавил ядер до в 8 
+# РґРѕР±Р°РІРёР» СЏРґРµСЂ РґРѕ РІ 8 
 ---------------------
-# После перезапуска click запустился во много потоков
+# РџРѕСЃР»Рµ РїРµСЂРµР·Р°РїСѓСЃРєР° click Р·Р°РїСѓСЃС‚РёР»СЃСЏ РІРѕ РјРЅРѕРіРѕ РїРѕС‚РѕРєРѕРІ
 pgrep -l clickhouse
 			893 clickhouse-serv
 pstree -p 893 | wc -l
@@ -303,7 +303,7 @@ mv /etc/udev/rules.d/ubuntu--vg-ubuntu--lv.rules ~/
 udevadm control --reload
 udevadm trigger
 
-# Запуск тестов
+# Р—Р°РїСѓСЃРє С‚РµСЃС‚РѕРІ
 
  echo "SELECT * FROM trips LIMIT 100000 OFFSET 100000" | clickhouse-benchmark --password asd123 --host=localhost --port=9000 -i 10
 
@@ -325,7 +325,7 @@ udevadm trigger
 			99.9%           1.917 sec.
 			99.99%          1.917 sec.
 
-# Система сильно тормозила после остановки мержей тест прошёл в 10 раз быстрее;
+# РЎРёСЃС‚РµРјР° СЃРёР»СЊРЅРѕ С‚РѕСЂРјРѕР·РёР»Р° РїРѕСЃР»Рµ РѕСЃС‚Р°РЅРѕРІРєРё РјРµСЂР¶РµР№ С‚РµСЃС‚ РїСЂРѕС€С‘Р» РІ 10 СЂР°Р· Р±С‹СЃС‚СЂРµРµ;
 system stop merges 
 
 			Queries executed: 10.
@@ -346,11 +346,11 @@ system stop merges
 			99%             0.257 sec.
 			99.9%           0.257 sec.
 			99.99%          0.257 sec.
-# В конфиг добавил строки для ограничение количества мержей партов
+# Р’ РєРѕРЅС„РёРі РґРѕР±Р°РІРёР» СЃС‚СЂРѕРєРё РґР»СЏ РѕРіСЂР°РЅРёС‡РµРЅРёРµ РєРѕР»РёС‡РµСЃС‚РІР° РјРµСЂР¶РµР№ РїР°СЂС‚РѕРІ
 vim /etc/clickhouse-server/config.d/bench_config.xml
         <background_pool_size>1</background_pool_size>
 
-# Посмотрел системную таблицу мержей 
+# РџРѕСЃРјРѕС‚СЂРµР» СЃРёСЃС‚РµРјРЅСѓСЋ С‚Р°Р±Р»РёС†Сѓ РјРµСЂР¶РµР№ 
  select * from system.merges;\G
 
 SELECT
@@ -364,17 +364,17 @@ FROM system.merges
 
 Query id: 7744e579-2a1f-402f-891b-324f2816131c
 
-   --database-T-table------T-progress-T-----elapsed-T-is_mutation-T-memory_usage-¬
-1. ¦ system   ¦ metric_log ¦        0 ¦ 2.948904929 ¦           0 ¦   1015537979 ¦
-2. ¦ system   ¦ metric_log ¦        0 ¦ 0.430894862 ¦           0 ¦     46321984 ¦
+   --database-T-table------T-progress-T-----elapsed-T-is_mutation-T-memory_usage-В¬
+1. В¦ system   В¦ metric_log В¦        0 В¦ 2.948904929 В¦           0 В¦   1015537979 В¦
+2. В¦ system   В¦ metric_log В¦        0 В¦ 0.430894862 В¦           0 В¦     46321984 В¦
    L----------+------------+----------+-------------+-------------+---------------
 
 2 rows in set. Elapsed: 0.053 sec.
 
  
-# постоянно мержится системная таблица
+# РїРѕСЃС‚РѕСЏРЅРЅРѕ РјРµСЂР¶РёС‚СЃСЏ СЃРёСЃС‚РµРјРЅР°СЏ С‚Р°Р±Р»РёС†Р°
 table:                         metric_log
-# как только начинаются  мержи даже в один поток скорость тестов сильно падает
+# РєР°Рє С‚РѕР»СЊРєРѕ РЅР°С‡РёРЅР°СЋС‚СЃСЏ  РјРµСЂР¶Рё РґР°Р¶Рµ РІ РѕРґРёРЅ РїРѕС‚РѕРє СЃРєРѕСЂРѕСЃС‚СЊ С‚РµСЃС‚РѕРІ СЃРёР»СЊРЅРѕ РїР°РґР°РµС‚
 
 			Queries executed: 10.
 
