@@ -1,7 +1,7 @@
-#ДЗ 21.012025
-#Язык запросов SQL
+#Р”Р— 21.012025
+#РЇР·С‹Рє Р·Р°РїСЂРѕСЃРѕРІ SQL
 
-# создание базы
+# СЃРѕР·РґР°РЅРёРµ Р±Р°Р·С‹
 clickhouse-client  --password asd123
 create database test_database;
 			Query id: b8264c81-b5d3-4f5a-98c4-72ce74eddfa6
@@ -15,33 +15,33 @@ SHOW CREATE DATABASE test_database;\G
 			Query id: 1b580171-b1ab-412e-937d-b837d46ebab3
 
 			Row 1:
-			------
+			в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 			statement: CREATE DATABASE test_database
 			ENGINE = Atomic
 
 			1 row in set. Elapsed: 0.024 sec.
 
 
-# Создание таблицы
+# РЎРѕР·РґР°РЅРёРµ С‚Р°Р±Р»РёС†С‹
 use test_database;
 CREATE TABLE restaurant_menu (
-    id UInt64, -- Уникальный идентификатор меню
-    dish_name String, -- Наименование блюда
-    category LowCardinality(String), -- Категория блюда (например, закуски, основные блюда, десерты)
-    description Nullable(String), -- Описание блюда
-    price Decimal(10, 2), -- Цена блюда
-    calories Nullable(UInt16), -- Количество калорий в блюде
-    ingredients Array(String), -- Ингредиенты блюда
-    is_vegetarian Bool, -- Флаг, является ли блюдо вегетарианским (0 - нет, 1 - да)
-    is_available Bool, -- Флаг, доступно ли блюдо в данный момент (0 - нет, 1 - да)
-    created_at DateTime -- Дата создания блюда
+    id UInt64, -- РЈРЅРёРєР°Р»СЊРЅС‹Р№ РёРґРµРЅС‚РёС„РёРєР°С‚РѕСЂ РјРµРЅСЋ
+    dish_name String, -- РќР°РёРјРµРЅРѕРІР°РЅРёРµ Р±Р»СЋРґР°
+    category LowCardinality(String), -- РљР°С‚РµРіРѕСЂРёСЏ Р±Р»СЋРґР° (РЅР°РїСЂРёРјРµСЂ, Р·Р°РєСѓСЃРєРё, РѕСЃРЅРѕРІРЅС‹Рµ Р±Р»СЋРґР°, РґРµСЃРµСЂС‚С‹)
+    description Nullable(String), -- РћРїРёСЃР°РЅРёРµ Р±Р»СЋРґР°
+    price Decimal(10, 2), -- Р¦РµРЅР° Р±Р»СЋРґР°
+    calories Nullable(UInt16), -- РљРѕР»РёС‡РµСЃС‚РІРѕ РєР°Р»РѕСЂРёР№ РІ Р±Р»СЋРґРµ
+    ingredients Array(String), -- РРЅРіСЂРµРґРёРµРЅС‚С‹ Р±Р»СЋРґР°
+    is_vegetarian Bool, -- Р¤Р»Р°Рі, СЏРІР»СЏРµС‚СЃСЏ Р»Рё Р±Р»СЋРґРѕ РІРµРіРµС‚Р°СЂРёР°РЅСЃРєРёРј (0 - РЅРµС‚, 1 - РґР°)
+    is_available Bool, -- Р¤Р»Р°Рі, РґРѕСЃС‚СѓРїРЅРѕ Р»Рё Р±Р»СЋРґРѕ РІ РґР°РЅРЅС‹Р№ РјРѕРјРµРЅС‚ (0 - РЅРµС‚, 1 - РґР°)
+    created_at DateTime -- Р”Р°С‚Р° СЃРѕР·РґР°РЅРёСЏ Р±Р»СЋРґР°
 ) ENGINE = MergeTree()
 PRIMARY KEY (category)
 ORDER BY (category, dish_name, price, created_at);
 
 show tables;
 
-# Вставка данных
+# Р’СЃС‚Р°РІРєР° РґР°РЅРЅС‹С…
 
 INSERT INTO restaurant_menu (id, dish_name, category, description, price, calories, ingredients, is_vegetarian, is_available, created_at) 
 VALUES 
@@ -102,16 +102,16 @@ ALTER TABLE restaurant_menu ADD column id FIRST ;
 
 
 CREATE TABLE restaurant_menu2 (
-    id UInt64, -- Уникальный идентификатор меню
-    dish_name String, -- Наименование блюда
-    category LowCardinality(String), -- Категория блюда (например, закуски, основные блюда, десерты)
-    description Nullable(String), -- Описание блюда
-    price Decimal(10, 2), -- Цена блюда
-    calories Nullable(UInt16), -- Количество калорий в блюде
-    ingredients Array(String), -- Ингредиенты блюда
-    is_vegetarian Bool, -- Флаг, является ли блюдо вегетарианским (0 - нет, 1 - да)
-    is_available Bool, -- Флаг, доступно ли блюдо в данный момент (0 - нет, 1 - да)
-    created_at DateTime -- Дата создания блюда
+    id UInt64, -- РЈРЅРёРєР°Р»СЊРЅС‹Р№ РёРґРµРЅС‚РёС„РёРєР°С‚РѕСЂ РјРµРЅСЋ
+    dish_name String, -- РќР°РёРјРµРЅРѕРІР°РЅРёРµ Р±Р»СЋРґР°
+    category LowCardinality(String), -- РљР°С‚РµРіРѕСЂРёСЏ Р±Р»СЋРґР° (РЅР°РїСЂРёРјРµСЂ, Р·Р°РєСѓСЃРєРё, РѕСЃРЅРѕРІРЅС‹Рµ Р±Р»СЋРґР°, РґРµСЃРµСЂС‚С‹)
+    description Nullable(String), -- РћРїРёСЃР°РЅРёРµ Р±Р»СЋРґР°
+    price Decimal(10, 2), -- Р¦РµРЅР° Р±Р»СЋРґР°
+    calories Nullable(UInt16), -- РљРѕР»РёС‡РµСЃС‚РІРѕ РєР°Р»РѕСЂРёР№ РІ Р±Р»СЋРґРµ
+    ingredients Array(String), -- РРЅРіСЂРµРґРёРµРЅС‚С‹ Р±Р»СЋРґР°
+    is_vegetarian Bool, -- Р¤Р»Р°Рі, СЏРІР»СЏРµС‚СЃСЏ Р»Рё Р±Р»СЋРґРѕ РІРµРіРµС‚Р°СЂРёР°РЅСЃРєРёРј (0 - РЅРµС‚, 1 - РґР°)
+    is_available Bool, -- Р¤Р»Р°Рі, РґРѕСЃС‚СѓРїРЅРѕ Р»Рё Р±Р»СЋРґРѕ РІ РґР°РЅРЅС‹Р№ РјРѕРјРµРЅС‚ (0 - РЅРµС‚, 1 - РґР°)
+    created_at DateTime -- Р”Р°С‚Р° СЃРѕР·РґР°РЅРёСЏ Р±Р»СЋРґР°
 ) ENGINE = MergeTree()
 PARTITION BY (category, created_at)
 PRIMARY KEY (dish_name, ingredients)
@@ -177,8 +177,8 @@ TO uniq_dishes_tb
  as SELECT  distinct dish_name, ingredients FROM restaurant_menu2 order by dish_name, ingredients;
 
 CREATE TABLE uniq_dishes_tb (
-    dish_name String, -- Наименование блюда
-    ingredients Array(String) -- Ингредиенты блюда
+    dish_name String, -- РќР°РёРјРµРЅРѕРІР°РЅРёРµ Р±Р»СЋРґР°
+    ingredients Array(String) -- РРЅРіСЂРµРґРёРµРЅС‚С‹ Р±Р»СЋРґР°
 ) ENGINE = MergeTree()
 PRIMARY KEY (dish_name, ingredients)
 ORDER BY (dish_name, ingredients,);
