@@ -232,11 +232,11 @@ WHERE table = 'restaurant_menu2'
   AND database = 'test_database';
 
 
-# отсоеденить парт от таблицы
+# отсоединить парт от таблицы
 
 alter table restaurant_menu detach PART 'all_1_1_0';
 
-# Присоеденить парт к таблице
+# Присоединить парт к таблице
 
 alter table restaurant_menu ATTACH PART 'all_1_1_0';
 
@@ -263,4 +263,4 @@ Query id: ae382e7c-04ba-4b37-bf6c-d362268ab672
 			3. │ tuple()   │ all_3_3_1 │      0 │    0 │     1 │
 			   └───────────┴───────────┴────────┴──────┴───────┘
 			   
-# отстоеденить пустые парты без данных нельзя
+# отстоединить пустые парты без данных нельзя
