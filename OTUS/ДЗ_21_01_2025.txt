@@ -191,3 +191,76 @@ order by dish_name
 as SELECT  distinct dish_name, ingredients FROM restaurant_menu2 order by dish_name, ingredients;
 
 
+SELECT 
+    partition, 
+    name AS part_name, 
+    active, 
+    rows, 
+    bytes 
+FROM system.parts 
+WHERE table = 'restaurant_menu2' 
+  AND database = 'restaurant_menu2';
+  
+  
+#Посмотреть   список партов таблицы
+
+SELECT
+    partition,
+    name AS part_name,
+    active,
+    rows,
+    bytes
+FROM system.parts
+WHERE table = 'restaurant_menu'
+  AND database = 'test_database';
+
+
+			   ┌─partition─┬─part_name─┬─active─┬─rows─┬─bytes─┐
+			1. │ tuple()   │ all_1_1_0 │      1 │   50 │  6011 │
+			   └───────────┴───────────┴────────┴──────┴───────┘
+
+
+
+SELECT
+    partition,
+    name AS part_name,
+    active,
+    rows,
+    bytes
+FROM system.parts
+WHERE table = 'restaurant_menu2'
+  AND database = 'test_database';
+
+
+# отсоеденить парт от таблицы
+
+alter table restaurant_menu detach PART 'all_1_1_0';
+
+# Присоеденить парт к таблице
+
+alter table restaurant_menu ATTACH PART 'all_1_1_0';
+
+# Удалить парт 
+
+alter table restaurant_menu DROP  PART 'all_3_3_0';
+
+# После отсоединения и присоединения партов их имя меняется
+
+SELECT
+    partition,
+    name AS part_name,
+    active,
+    rows,
+    bytes
+FROM system.parts
+WHERE (`table` = 'restaurant_menu') AND (database = 'test_database')
+
+Query id: ae382e7c-04ba-4b37-bf6c-d362268ab672
+
+			   ┌─partition─┬─part_name─┬─active─┬─rows─┬─bytes─┐
+			1. │ tuple()   │ all_1_1_1 │      0 │    0 │     1 │
+			2. │ tuple()   │ all_2_2_1 │      0 │    0 │     1 │
+			3. │ tuple()   │ all_3_3_1 │      0 │    0 │     1 │
+			   └───────────┴───────────┴────────┴──────┴───────┘
+			   
+# отстоеденить пустые парты без данных нельзя

@@ -35,9 +35,9 @@ sudo apt-get install -y clickhouse-server clickhouse-client
 systemctl enable clickhouse-server.service
 systemctl start clickhouse-server.service
 systemctl status clickhouse-server.service
-				  clickhouse-server.service - ClickHouse Server (analytic DBMS for big data)
-					 Loaded: loaded (/lib/systemd/system/clickhouse-server.service; enabled; vendor preset: enabled)
-					 Active: active (running) since Tue 2025-01-21 13:10:25 UTC; 3s ago
+				  clickhouse-server.sservice; enabled; vendor preset: enabled)
+					 Active: active (running) since Tue ervice - ClickHouse Server (analytic DBMS for big data)
+					 Loaded: loaded (/lib/systemd/system/clickhouse-server.2025-01-21 13:10:25 UTC; 3s ago
 				   Main PID: 3884 (clickhouse-serv)
 					  Tasks: 674 (limit: 4559)
 					 Memory: 200.0M
