@@ -31,17 +31,14 @@ SELECT * FROM tbl1;
 
 scylla3 :) SELECT * FROM tbl1 final;
 
-SELECT *
-FROM tbl1
-FINAL
 
-Query id: 4e9a6cbd-17db-40a8-b843-2ad59c8e1cb1
+			Query id: 4e9a6cbd-17db-40a8-b843-2ad59c8e1cb1
 
-   ┌──────────────UserID─┬─PageViews─┬─Duration─┬─Sign─┬─Version─┐
-1. │ 4324182021466249494 │         6 │      185 │    1 │       2 │
-   └─────────────────────┴───────────┴──────────┴──────┴─────────┘
+			   ┌──────────────UserID─┬─PageViews─┬─Duration─┬─Sign─┬─Version─┐
+			1. │ 4324182021466249494 │         6 │      185 │    1 │       2 │
+			   └─────────────────────┴───────────┴──────────┴──────┴─────────┘
 
-1 row in set. Elapsed: 0.003 sec.
+			1 row in set. Elapsed: 0.003 sec.
 
 # Такой же результат select final можно получить при  использовании движка CollapsingMergeTree(Sign)
 # Ошибка создания. Имена полей в ENGINE регистрозависимые. Sign необходимо писать с большой буквы.
@@ -108,15 +105,14 @@ ORDER BY key;
 INSERT INTO tbl2 Values(1,1),(1,2),(2,1);
 
 
-SELECT *
-FROM tbl2
+SELECT * FROM tbl2;
 
-Query id: aecedcd6-3930-40c3-914a-8197a06a8adc
+			Query id: aecedcd6-3930-40c3-914a-8197a06a8adc
 
-   ┌─key─┬─value─┐
-1. │   1 │     3 │
-2. │   2 │     1 │
-   └─────┴───────┘
+			   ┌─key─┬─value─┐
+			1. │   1 │     3 │
+			2. │   2 │     1 │
+			   └─────┴───────┘
 
 # Ответ 3 ReplacingMergeTree
 # Проверка
