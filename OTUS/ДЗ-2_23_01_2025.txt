@@ -1,0 +1,60 @@
+#ДЗ 21.012025
+# Использование user defined function
+
+mkdir /etc/clickhouse-server/user_functions
+touch /etc/clickhouse-server/config.d/function_config.xml
+
+			<clickhouse>
+				<user_defined_executable_functions_config>
+					   <allow_functions>true</allow_functions>
+					   <execution_path>/etc/clickhouse-server/user_functions/*_function.xml</execution_path>
+				</user_defined_executable_functions_config>
+			</clickhouse>
+
+
+touch /etc/clickhouse-server/user_functions/total_price.py
+
+# Посмотреть список функций
+SELECT name FROM system.functions;
+
+# Как посмотреть список только пользовательских функций?
+SELECT * FROM system.functions where origin != 'System' ;\G
+
+SELECT * FROM system.functions where name = 'is_rich' or name = 'sum_price_ch';
+
+Query id: ebc8a699-db4a-420a-ba0d-15ad9b40a812
+
+			Row 1:
+			──────
+			name:             is_rich
+			is_aggregate:     0
+			case_insensitive: 0
+			alias_to:
+			create_query:     CREATE FUNCTION is_rich AS a -> if(a > 100, 'RICH', 'CHEAP')
+			origin:           SQLUserDefined
+			description:
+			syntax:
+			arguments:
+			returned_value:
+			examples:
+			categories:
+
+			Row 2:
+			──────
+			name:             sum_price_ch
+			is_aggregate:     0
+			case_insensitive: 0
+			alias_to:
+			create_query:     CREATE FUNCTION sum_price_ch AS (a, b) -> (a * b)
+			origin:           SQLUserDefined
+			description:
+			syntax:
+			arguments:
+			returned_value:
+			examples:
+			categories:
+
+			2 rows in set. Elapsed: 0.059 sec. Processed 1.60 thousand rows, 311.71 KB (26.95 thousand rows/s., 5.24 MB/s.)
+			Peak memory usage: 0.00 B.
+
+
