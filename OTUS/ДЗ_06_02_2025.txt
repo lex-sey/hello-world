@@ -1,0 +1,370 @@
+#ДЗ 06.02.2025
+#  Джоины и агрегации
+
+# Создание схемы
+
+CREATE DATABASE imdb;
+
+CREATE TABLE imdb.actors
+(
+    id         UInt32,
+    first_name String,
+    last_name  String,
+    gender     FixedString(1)
+) ENGINE = MergeTree ORDER BY (id, first_name, last_name, gender);
+
+CREATE TABLE imdb.genres
+(
+    movie_id UInt32,
+    genre    String
+) ENGINE = MergeTree ORDER BY (movie_id, genre);
+
+CREATE TABLE imdb.movies
+(
+    id   UInt32,
+    name String,
+    year UInt32,
+    rank Float32 DEFAULT 0
+) ENGINE = MergeTree ORDER BY (id, name, year);
+
+CREATE TABLE imdb.roles
+(
+    actor_id   UInt32,
+    movie_id   UInt32,
+    role       String,
+    created_at DateTime DEFAULT now()
+) ENGINE = MergeTree ORDER BY (actor_id, movie_id);
+
+
+# Вставка данных
+
+INSERT INTO imdb.actors SELECT *
+FROM s3('https://datasets-documentation.s3.eu-west-3.amazonaws.com/imdb/imdb_ijs_actors.tsv.gz', 'TSVWithNames')
+
+			Query id: 52d1ee42-def3-482d-a4b2-2074c0b8fd49
+
+			Ok.
+
+			0 rows in set. Elapsed: 2.414 sec. Processed 817.72 thousand rows, 25.60 MB (338.77 thousand rows/s., 10.60 MB/s.)
+			Peak memory usage: 41.00 MiB.
+
+
+INSERT INTO imdb.genres SELECT *
+FROM s3('https://datasets-documentation.s3.eu-west-3.amazonaws.com/imdb/imdb_ijs_movies_genres.tsv.gz', 'TSVWithNames')
+
+			Query id: 7b918e78-decc-441b-9d99-8011bddfe6b4
+
+			Ok.
+
+			0 rows in set. Elapsed: 1.306 sec. Processed 395.12 thousand rows, 6.81 MB (302.65 thousand rows/s., 5.21 MB/s.)
+			Peak memory usage: 15.01 MiB.
+
+
+INSERT INTO imdb.movies SELECT *
+FROM s3('https://datasets-documentation.s3.eu-west-3.amazonaws.com/imdb/imdb_ijs_movies.tsv.gz', 'TSVWithNames')
+
+			Query id: 7a3515e5-e282-4cd4-98aa-c8606f9087fe
+
+			Ok.
+
+			0 rows in set. Elapsed: 1.707 sec. Processed 388.27 thousand rows, 11.74 MB (227.49 thousand rows/s., 6.88 MB/s.)
+			Peak memory usage: 32.69 MiB.
+
+INSERT INTO imdb.roles (actor_id, movie_id, role) SELECT
+    actor_id,
+    movie_id,
+    role
+FROM s3('https://datasets-documentation.s3.eu-west-3.amazonaws.com/imdb/imdb_ijs_roles.tsv.gz', 'TSVWithNames')
+
+			Query id: 7291e957-e311-4adc-bf4f-a6cf3c21dee2
+
+			Ok.
+
+			0 rows in set. Elapsed: 6.998 sec. Processed 3.43 million rows, 82.76 MB (490.44 thousand rows/s., 11.83 MB/s.)
+			Peak memory usage: 86.92 MiB.
+
+# Найти жанры для каждого фильма
+
+SELECT
+    m.name AS movie_name,
+    groupArray(g.genre) AS genres
+FROM imdb.movies AS m
+INNER JOIN imdb.genres AS g ON m.id = g.movie_id
+GROUP BY m.name order by name;
+
+Query id: 6a66a4fe-8032-41f2-9741-63b07c3487fa
+
+			   ┌─movie_name──────────────────────────┬─genres─────────────────────┐
+			1. │  Beira do Rio                       │ ['Documentary']            │
+			2. │  Casablanca les anges ne volent pas │ ['Drama']                  │
+			3. │  Clara                              │ ['Drama','Family','Short'] │
+			   └─────────────────────────────────────┴────────────────────────────┘
+
+			3 rows in set. Elapsed: 0.272 sec. Processed 783.39 thousand rows, 19.95 MB (2.88 million rows/s., 73.35 MB/s.)
+			Peak memory usage: 101.54 MiB.
+
+SELECT
+    m.name AS movie_name
+FROM imdb.movies AS m
+INNER JOIN imdb.genres AS g ON m.id = g.movie_id
+where genre IS NULL;
+ 
+#Запросить все фильмы, у которых нет жанра 
+
+select distinct movie_name, genres from (
+SELECT
+    m.name AS movie_name, g.genre AS genres
+FROM imdb.movies AS m
+LEFT OUTER JOIN imdb.genres AS g ON m.id = g.movie_id
+where genres = ''
+order by name);
+
+			Query id: bb1d92e9-c15b-45ee-8975-0a2abe1bfb28
+
+			   ┌─movie_name──────────────────────┬─genres─┐
+			1. │  173 St.G.B. Blutschande        │        │
+			2. │  51 StGB                        │        │
+			3. │  Biribi, disciplinaires franais │        │
+			   └─────────────────────────────────┴────────┘
+
+			3 rows in set. Elapsed: 0.157 sec. Processed 783.39 thousand rows, 19.95 MB (4.99 million rows/s., 127.06 MB/s.)
+			Peak memory usage: 52.30 MiB.
+
+# Количество таких фильмов
+# Количество отличается для count distinct и uniq
+select count(distinct movie_name) from (
+SELECT
+    m.name AS movie_name, g.genre AS genres
+FROM imdb.movies AS m
+LEFT OUTER JOIN imdb.genres AS g ON m.id = g.movie_id
+where genres = ''
+order by name);
+
+		Query id: d463d058-0cae-4f17-ac60-061463ff0ab2
+
+		   ┌─countDistinct(movie_name)─┐
+		1. │                    131244 │
+		   └───────────────────────────┘
+
+select uniq(movie_name) from (
+SELECT
+    m.name AS movie_name, g.genre AS genres
+FROM imdb.movies AS m
+LEFT OUTER JOIN imdb.genres AS g ON m.id = g.movie_id
+where genres = ''
+order by name);
+
+Query id: 2836106a-dc17-46a4-8aaa-69f57df51fec
+
+			   ┌─uniq(movie_name)─┐
+			1. │           131800 │
+			   └──────────────────┘
+
+			1 row in set. Elapsed: 0.144 sec. Processed 783.39 thousand rows, 19.95 MB (5.42 million rows/s., 138.07 MB/s.)
+			Peak memory usage: 44.41 MiB.
+
+# Объединить каждую строку из таблицы “Фильмы” с каждой строкой из таблицы “Жанры”
+SELECT
+    m.name AS movie_name, g.genre AS genres
+FROM imdb.movies AS m
+FULL OUTER JOIN imdb.genres AS g ON m.id = g.movie_id
+order by name ;
+
+			Query id: efda39a6-8dbc-4c04-9ad9-a2cf4bd685bc
+
+			   ┌─movie_name───────────────┬─genres──────┐
+			1. │  173 St.G.B. Blutschande │             │
+			2. │  51 StGB                 │             │
+			3. │  Beira do Rio            │ Documentary │
+			   └──────────────────────────┴─────────────┘
+
+			3 rows in set. Elapsed: 0.141 sec. Processed 783.39 thousand rows, 19.95 MB (5.55 million rows/s., 141.42 MB/s.)
+			Peak memory usage: 51.97 MiB.
+
+# Найти жанры для каждого фильма, НЕ используя INNER JOIN
+
+select distinct movie_name, genres from (
+SELECT
+    m.name AS movie_name, g.genre AS genres
+FROM imdb.movies AS m
+FULL OUTER JOIN imdb.genres AS g ON m.id = g.movie_id
+where genres != ''
+order by name);
+
+			Query id: e323ad06-dac8-4989-a122-58136e8acbea
+
+			   ┌─movie_name──────────────────────────┬─genres──────┐
+			1. │  Beira do Rio                       │ Documentary │
+			2. │  Casablanca les anges ne volent pas │ Drama       │
+			3. │  Clara                              │ Short       │
+			   └─────────────────────────────────────┴─────────────┘
+
+			3 rows in set. Elapsed: 0.245 sec. Processed 783.39 thousand rows, 19.95 MB (3.19 million rows/s., 81.34 MB/s.)
+			Peak memory usage: 77.39 MiB.
+
+# Найти всех актеров и актрис, снявшихся в фильме в 2023 году
+# В 2023 году нет фильмов самый новый фильм за 2008 г.
+select * from imdb.movies where year = '2008'; 
+
+			Query id: ec820ceb-ced3-4529-8499-9a9b4f762b2b
+
+			   ┌─────id─┬─name───────────────────────────────────┬─year─┬─rank─┐
+			1. │ 139653 │ Harry Potter and the Half-Blood Prince │ 2008 │    0 │
+			   └────────┴────────────────────────────────────────┴──────┴──────┘
+
+# Найти всех актеров и актрис, снявшихся в фильме в 2003 году
+
+select distinct (
+ a.first_name,
+ a.last_name),
+ mr.name,
+ mr.year
+from imdb.actors as a
+join (
+SELECT 
+ m.id,
+ m.name,
+ m.year,
+ r.actor_id
+FROM imdb.roles  AS r
+JOIN imdb.movies AS m ON r.actor_id = m.id
+WHERE m.year = '2003') as mr on mr.actor_id = a.id
+order by mr.name ;
+
+			Query id: 3cfa4ee0-d293-46ef-8905-45bd037edffb
+
+			   ┌─(first_name, last_name)─┬─name──────────────┬─year─┐
+			1. │ ('Gerald','Plecki')     │  Margem da Imagem │ 2003 │
+			2. │ ('Ralph','Platz')       │  cran             │ 2003 │
+			3. │ ('V.','Plavinsky')      │  hauteur d'homme  │ 2003 │
+			   └─────────────────────────┴───────────────────┴──────┘
+
+			3 rows in set. Elapsed: 0.193 sec. Processed 4.64 million rows, 56.34 MB (24.02 million rows/s., 291.75 MB/s.)
+			Peak memory usage: 36.95 MiB.
+
+# Все фильмы 2003 года где больше одного актёра
+
+select uniq (
+ a.first_name,
+ a.last_name) as un,
+ mr.name,
+ mr.year
+from imdb.actors as a
+join (
+SELECT 
+ m.id,
+ m.name,
+ m.year,
+ r.actor_id
+FROM imdb.roles  AS r
+JOIN imdb.movies AS m ON r.actor_id = m.id
+WHERE m.year = '2003') as mr on mr.actor_id = a.id
+group by mr.name,mr.year  having un >1  order by mr.name;
+
+			Query id: cf660283-6098-45be-baac-4e22d5484822
+
+			   ┌─un─┬─name───────────────┬─year─┐
+			1. │  2 │ AfterLife          │ 2003 │
+			2. │  2 │ Detaljer           │ 2003 │
+			3. │  2 │ Jack               │ 2003 │
+			4. │  2 │ Par amour (2003/I) │ 2003 │
+			5. │  2 │ Roadkill           │ 2003 │
+			   └────┴────────────────────┴──────┘
+
+			5 rows in set. Elapsed: 0.151 sec. Processed 4.64 million rows, 56.34 MB (30.74 million rows/s., 373.43 MB/s.)
+			Peak memory usage: 36.95 MiB.
+
+# Странная база. Для каждого фильма в основном указан один актёр
+# Все актёры фильма Roadkill 2003 года
+select distinct ( 
+ a.first_name,
+ a.last_name) ,
+ mr.name,
+ mr.year
+from imdb.actors as a
+join (
+SELECT 
+ m.id,
+ m.name,
+ m.year,
+ r.actor_id
+FROM imdb.roles  AS r
+JOIN imdb.movies AS m ON r.actor_id = m.id
+WHERE m.year = '2003' and m.name = 'Roadkill') as mr on mr.actor_id = a.id
+order by mr.name ;
+
+			Query id: b1c832a3-0a4b-4737-a1a4-0a4fb6336e93
+
+			   ┌─(first_name, last_name)─┬─name─────┬─year─┐
+			1. │ ('Martin','Lindholm')   │ Roadkill │ 2003 │
+			2. │ ('Ola','Lindholm')      │ Roadkill │ 2003 │
+			   └─────────────────────────┴──────────┴──────┘
+
+			2 rows in set. Elapsed: 0.147 sec. Processed 4.64 million rows, 54.82 MB (31.57 million rows/s., 373.13 MB/s.)
+			Peak memory usage: 17.31 MiB.
+
+# Все актёры фильмов с названием Roadkill за все годы
+
+select  
+ a.first_name,
+ a.last_name,
+ mr.name,
+ mr.year
+from imdb.actors as a
+join (
+SELECT 
+ m.id,
+ m.name,
+ m.year,
+ r.actor_id
+FROM imdb.roles  AS r
+JOIN imdb.movies AS m ON r.actor_id = m.id
+WHERE  m.name = 'Roadkill') as mr on mr.actor_id = a.id
+order by mr.name ;
+
+			Query id: a2dd9893-5fde-4a9a-a603-bba00ed082d0
+
+			   ┌─first_name─┬─last_name─┬─name─────┬─year─┐
+			1. │ Halvar     │ Lindholm  │ Roadkill │ 1989 │
+			2. │ Lauri      │ Lindholm  │ Roadkill │ 1996 │
+			3. │ Magne      │ Lindholm  │ Roadkill │ 2001 │
+			4. │ Magne      │ Lindholm  │ Roadkill │ 2001 │
+			5. │ Martin     │ Lindholm  │ Roadkill │ 2003 │
+			6. │ Martin     │ Lindholm  │ Roadkill │ 2003 │
+			7. │ Ola        │ Lindholm  │ Roadkill │ 2003 │
+			   └────────────┴───────────┴──────────┴──────┘
+
+			7 rows in set. Elapsed: 0.133 sec. Processed 4.64 million rows, 53.30 MB (34.90 million rows/s., 401.06 MB/s.)
+			Peak memory usage: 17.31 MiB.
+
+#Запросить все фильмы, у которых нет жанра, через ANTI JOIN
+
+SELECT
+    m.name AS movie_name, m.year,  g.genre AS genres
+FROM imdb.movies AS m
+ANTI JOIN imdb.genres AS g ON m.id = g.movie_id
+order by movie_name limit 15;
+
+			Query id: 6949e70f-7927-4623-82b2-140e1740d23c
+
+				┌─movie_name───────────────────────────────────┬─year─┬─genres─┐
+			 1. │  173 St.G.B. Blutschande                     │ 1929 │        │
+			 2. │  51 StGB                                     │ 1915 │        │
+			 3. │  Biribi, disciplinaires franais              │ 1907 │        │
+			 4. │  Chi tung chong                              │ 1996 │        │
+			 5. │  Flor do Mar                                 │ 1986 │        │
+			 6. │  Kagiti                                      │ 1981 │        │
+			 7. │  Xente, Pois No                              │ 1973 │        │
+			 8. │  arrivata la parigina                        │ 1958 │        │
+			 9. │  arrivato l'accordatore                      │ 1952 │        │
+			10. │  bicyclette                                  │ 2001 │        │
+			11. │  bon pied, bon oeil                          │ 1972 │        │
+			12. │  bout portant: Pauline Carton                │ 1974 │        │
+			13. │  caduta una donna                            │ 1952 │        │
+			14. │  caduta una donna                            │ 1941 │        │
+			15. │  chacun son Borinage - Images d'Henri Storck │ 1978 │        │
+				└──────────────────────────────────────────────┴──────┴────────┘
+
+			15 rows in set. Elapsed: 0.099 sec. Processed 783.39 thousand rows, 21.50 MB (7.95 million rows/s., 218.11 MB/s.)
+			Peak memory usage: 37.33 MiB.
+
