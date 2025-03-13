@@ -1,0 +1,111 @@
+#ДЗ 11.02.2025
+#  Словари, оконные и табличные функции.
+
+create database db2;
+			Ok.
+
+			0 rows in set. Elapsed: 6.996 sec.
+USE db2
+
+			Query id: afe863d3-1f95-48d4-ac19-3071f16e8920
+
+			Ok.
+
+			0 rows in set. Elapsed: 0.003 sec.
+
+
+
+
+CREATE TABLE db2.tb1
+(
+    user_id         UInt64,
+    action  String,
+    expense   UInt64,
+) ENGINE = MergeTree ORDER BY (user_id);
+
+# Создание словаря
+
+touch /etc/clickhouse-server/dict_user.txt
+echo "1       alex@mail.ru
+2       ivan@yandex.ru
+3       petr@google.com
+4       masha@yahoo.com
+4       masha@google.com" > /etc/clickhouse-server/dict_user.txt
+
+CREATE DICTIONARY db2.DICT_USER (
+user_id UInt64,
+email String
+)
+PRIMARY KEY user_id 
+SOURCE (FILE (path '/var/lib/clickhouse/user_files/dict_user.txt' format TabSeparated)) 
+LAYOUT (FLAT()) 
+LIFETIME (MIN 5 MAX 10);
+
+
+# Список созданных словарей
+select * from system.dictionaries;
+			Row 1:
+			──────
+			database:                           db2
+			name:                               DICT_USER
+			uuid:                               8238ece5-1081-4bad-ab5b-ffc43f15ffe7
+			status:                             LOADED
+			origin:                             8238ece5-1081-4bad-ab5b-ffc43f15ffe7
+			type:                               Flat
+			key.names:                          ['user_id']
+			key.types:                          ['UInt64']
+			attribute.names:                    ['email']
+			attribute.types:                    ['String']
+			bytes_allocated:                    21144
+			hierarchical_index_bytes_allocated: 0
+			query_count:                        0
+			hit_rate:                           1
+			found_rate:                         0
+			element_count:                      4
+			load_factor:                        0.00390625
+			source:                             File: /var/lib/clickhouse/user_files/dict_user.txt, TabSeparated
+			lifetime_min:                       5
+			lifetime_max:                       10
+			loading_start_time:                 2025-03-06 21:20:56
+			last_successful_update_time:        2025-03-06 21:20:56
+			loading_duration:                   0.003
+			last_exception:
+			comment:
+
+# Проверка что всё создано правильно и загрузка словаря в память
+# Файл словаря должен лежать в директории /var/lib/clickhouse/user_files/ (можно поменять в конфиге) и должны быть права на чтение.
+# Для разделителя использовать только tab и убрать перенос строки в конце файла
+system reload DICTIONARY db2.DICT_USER;
+			SYSTEM RELOAD DICTIONARY db2.DICT_USER
+
+			Query id: 7f2ed3c4-1551-40f5-832d-763367ab2084
+
+			Ok.
+
+			0 rows in set. Elapsed: 0.011 sec.
+
+
+# Наполнение таблицы данными
+
+insert into test_db2.tb1 (user_id, action, expense) select number, fuzzBits('action1', 0.01), rand(number) from numbers(1,4);
+
+select * from test_db2.tb1;
+
+			Query id: e860149c-17cf-4d44-b5cb-85c9850e31cf
+
+			   ┌─user_id─┬─action──┬────expense─┐
+			1. │       1 │ action1 │  245385271 │
+			2. │       2 │ actimn1 │    3310282 │
+			3. │       3 │ action1 │ 1518450891 │
+			4. │       4 │ actiol1 │ 2238147391 │
+			   └─────────┴─────────┴────────────┘
+
+			4 rows in set. Elapsed: 0.002 sec.
+
+# Запрос в словарь
+
+select dictGet('DICT_USER','email', number) as dic from numbers(1,4);
+
+#
+
+select dictGet('DICT_USER','email', user_id) as email, t.user_id, action from tb1 as t  ;

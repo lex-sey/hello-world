@@ -1,0 +1,215 @@
+#ДЗ 18.02.2025
+#  Проекции и материализованные представления
+
+# Создание таблицы
+CREATE TABLE db3.sales
+(
+    id         UInt32,
+    product_id   UInt32,
+    quantity    UInt32,
+    price       UInt32,
+    sale_date   DateTime
+) ENGINE = MergeTree ORDER BY (id);
+
+# Заполнение данными
+
+INSERT INTO db3.sales VALUES
+(1, 1001, 10, 50, '2022-01-01 12:00:00'),
+(2, 1002, 5, 100, '2022-01-02 10:00:00'),
+(3, 1003, 8, 75, '2022-01-03 15:00:00'),
+(4, 1004, 3, 200, '2022-01-04 09:00:00'),
+(5, 1005, 6, 120, '2022-01-05 11:00:00');
+
+
+# Создание проекции
+ALTER TABLE db3.sales ADD PROJECTION db3.sales_product_id_prj
+(select id, product_id, quantity, price, sale_date, price*quantity from db3.sales order by product_id)
+
+			Query id: 6d39fd7b-f1e0-485a-a732-77c90175347c
+
+			Ok.
+
+			0 rows in set. Elapsed: 0.233 sec.
+
+# Материализовать для текущих данных
+alter table db3.sales MATERIALIZE PROJECTION sales_product_id_prj;
+
+			Query id: e0a96c54-5834-48cf-9fef-802c921b81c6
+
+			Ok.
+
+			0 rows in set. Elapsed: 0.020 sec.
+
+
+#Посмотреть парты проекций для таблицы
+select name, parent_name,rows,active from system.projection_parts where table='sales';
+
+			Query id: 7c43c061-1dbc-4177-9557-e9b4c5760332
+
+			   ┌─name─────────────────┬─parent_name─┬─rows─┬─active─┐
+			1. │ sales_product_id_prj │ all_1_1_0_2 │    5 │      1 │
+			   └──────────────────────┴─────────────┴──────┴────────┘
+
+			1 row in set. Elapsed: 0.004 sec.
+
+# Создание MV
+product_id, UInt32
+total_quantity, UInt32
+total_sales, UInt32
+
+# С явным созданием таблицы
+CREATE TABLE db3.sales_sum
+(
+    product_id   UInt32,
+    sum_quantity    UInt32,
+    sales       UInt32
+) ENGINE = MergeTree ORDER BY (product_id);
+
+			Query id: 7279faf0-20ad-4279-9588-45fae4d78e0c
+
+			Ok.
+
+			0 rows in set. Elapsed: 0.084 sec.
+
+CREATE MATERIALIZED VIEW db3.sales_mv 
+TO db3.sales_sum
+AS
+   select 
+     product_id,
+      sum(quantity),
+      sum(price*quantity)
+      from sales
+   GROUP BY product_id
+   ORDER BY product_id;
+
+
+# Очистка таблицы
+truncate table db3.sales;
+
+# Вставка данных
+
+INSERT INTO db3.sales VALUES
+(1, 1001, 10, 50, '2022-01-01 12:00:00'),
+(2, 1002, 5, 100, '2022-01-02 10:00:00'),
+(3, 1003, 8, 75, '2022-01-03 15:00:00'),
+(4, 1004, 3, 200, '2022-01-04 09:00:00'),
+(5, 1005, 6, 120, '2022-01-05 11:00:00');
+
+			INSERT INTO db3.sales FORMAT Values
+
+			Query id: 9fcc5499-91cd-4e28-94bf-f03976eeee2b
+
+			Ok.
+
+			5 rows in set. Elapsed: 0.017 sec.
+
+# Посмотреть данные в MV
+# При попытке запроса получаю ошибку
+
+SELECT *
+FROM db3.sales_mv
+
+		Code: 10. DB::Exception: Received from localhost:9000. DB::Exception: Column `sum(quantity)` not found in table db3.sales_sum (e25f029c-a8e0-4d41-9513-17744088466e). (NOT_FOUND_COLUMN_IN_BLOCK)
+
+# Выбрать данные из проекции
+
+select id, product_id, quantity, price, sale_date, price*quantity from db3.sales order by product_id;
+
+			Query id: 96c716be-9b6f-48c2-9da4-0caa55d3e06a
+
+			   ┌─id─┬─product_id─┬─quantity─┬─price─┬───────────sale_date─┬─multiply(price, quantity)─┐
+			1. │  1 │       1001 │       10 │    50 │ 2022-01-01 12:00:00 │                       500 │
+			2. │  2 │       1002 │        5 │   100 │ 2022-01-02 10:00:00 │                       500 │
+			3. │  3 │       1003 │        8 │    75 │ 2022-01-03 15:00:00 │                       600 │
+			4. │  4 │       1004 │        3 │   200 │ 2022-01-04 09:00:00 │                       600 │
+			5. │  5 │       1005 │        6 │   120 │ 2022-01-05 11:00:00 │                       720 │
+			   └────┴────────────┴──────────┴───────┴─────────────────────┴───────────────────────────┘
+
+			5 rows in set. Elapsed: 0.004 sec.
+
+
+# Создание MV с неявным создание таблицы
+
+CREATE TABLE db3.sales2
+(
+    id         UInt32,
+    product_id   UInt32,
+    quantity    UInt32,
+    price       UInt32,
+    sale_date   DateTime
+) ENGINE = MergeTree ORDER BY (id);
+
+# при создании MV на движке MergeTree получал ошибку
+
+CREATE MATERIALIZED VIEW db3.sales4_mv
+ENGINE =  MergeTree  as 
+   select
+     product_id,
+      sum(quantity),
+      sum(price*quantity)
+      from sales2
+   GROUP BY product_id
+   ORDER BY product_id
+;
+			Received exception from server (version 25.1.4):
+			Code: 42. DB::Exception: Received from localhost:9000. DB::Exception: ORDER BY or PRIMARY KEY clause is missing. Consider using extended storage definition syntax with ORDER BY or PRIMARY KEY clause. With deprecated old syntax (highly not recommended) storage MergeTree requires 3 to 4 parameters:
+			name of column with date,
+			[sampling element of primary key],
+			primary key expression,
+			index granularity
+
+# На движке TinyLog создалось нормально 
+CREATE MATERIALIZED VIEW db3.sales2_mv
+ENGINE =  TinyLog  as 
+   select
+     product_id,
+      sum(quantity),
+      sum(price*quantity)
+      from sales2
+   GROUP BY product_id
+   ORDER BY product_id;
+
+			Query id: b02bc3ce-22ee-4f28-a865-f0a498e25a80
+
+			Ok.
+
+			0 rows in set. Elapsed: 0.069 sec.
+
+# Вставка данных 
+INSERT INTO db3.sales2 VALUES
+(1, 1001, 10, 50, '2022-01-01 12:00:00'),
+(2, 1002, 5, 100, '2022-01-02 10:00:00'),
+(3, 1003, 8, 75, '2022-01-03 15:00:00'),
+(4, 1004, 3, 200, '2022-01-04 09:00:00'),
+(5, 1005, 6, 120, '2022-01-05 11:00:00'),
+(6, 1001, 3, 55, '2022-01-04 10:00:00');
+
+
+			Query id: e945b67d-6600-4bda-9659-c8a96ae17fb1
+
+			Ok.
+
+			6 rows in set. Elapsed: 0.043 sec.
+
+# Просмотр данных в MV
+ select * from db3.sales2_mv;
+
+			Query id: 40626555-6f5f-4408-9743-6ae302a5ea2d
+
+			   ┌─product_id─┬─sum(quantity)─┬─sum(multiply⋯ quantity))─┐
+			1. │       1001 │            13 │                      665 │
+			2. │       1002 │             5 │                      500 │
+			3. │       1003 │             8 │                      600 │
+			4. │       1004 │             3 │                      600 │
+			5. │       1005 │             6 │                      720 │
+			   └────────────┴───────────────┴──────────────────────────┘
+
+			5 rows in set. Elapsed: 0.003 sec.
+
+
+# При выборке данных из проекции запрос выполнился за 
+			5 rows in set. Elapsed: 0.004 sec.
+# При выборке данных из MV запрос выполнился за 
+			5 rows in set. Elapsed: 0.003 sec.
+			
+# Объёмы маленькие и сравнение может быть не адекватным.
