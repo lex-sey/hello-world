@@ -87,25 +87,174 @@ system reload DICTIONARY db2.DICT_USER;
 
 # Наполнение таблицы данными
 
-insert into test_db2.tb1 (user_id, action, expense) select number, fuzzBits('action1', 0.01), rand(number) from numbers(1,4);
+insert into db2.tb1 (user_id, action, expense) select number, fuzzBits('action1', 0.01), rand(number) from numbers(1,4);
+insert into db2.tb1 (user_id, action, expense) select number, fuzzBits('action1', 0.01), rand(number) from numbers(1,4);
+insert into db2.tb1 (user_id, action, expense) select number, fuzzBits('action1', 0.01), rand(number) from numbers(1,4);
 
-select * from test_db2.tb1;
+--insert into db2.tb2 (user_id, action, expense) select number, 'action' || round(randCanonical() * 10 ), rand(number) from numbers(1,10);
 
-			Query id: e860149c-17cf-4d44-b5cb-85c9850e31cf
+select * from db2.tb1;
 
-			   ┌─user_id─┬─action──┬────expense─┐
-			1. │       1 │ action1 │  245385271 │
-			2. │       2 │ actimn1 │    3310282 │
-			3. │       3 │ action1 │ 1518450891 │
-			4. │       4 │ actiol1 │ 2238147391 │
-			   └─────────┴─────────┴────────────┘
+			Query id: 05cb155f-2181-4fe8-b891-bcad09d44917
 
-			4 rows in set. Elapsed: 0.002 sec.
+				┌─user_id─┬─action──┬────expense─┐
+			 1. │       1 │ action1 │  942397217 │
+			 2. │       2 │ actmon1 │ 1431980681 │
+			 3. │       3 │ action1 │ 3225872705 │
+			 4. │       4 │ iction  │ 2696583351 │
+			 5. │       5 │ actioo1 │ 4170833113 │
+			 6. │       6 │ action1 │ 1273506263 │
+			 7. │       1 │ action1 │ 3615040699 │
+			 8. │       2 │ action! │ 1586758123 │
+			 9. │       3 │ actionq │  120187363 │
+			10. │       4 │ action1 │ 2458679879 │
+			11. │       5 │ actiOn1 │ 2099969413 │
+			12. │       6 │ aCtiofq │ 3835853231 │
+				└─────────┴─────────┴────────────┘
+
+			12 rows in set. Elapsed: 0.006 sec.
+
 
 # Запрос в словарь
 
 select dictGet('DICT_USER','email', number) as dic from numbers(1,4);
 
-#
+			Query id: 961bc38c-6fc8-4528-a1cf-bbfc4d167536
 
-select dictGet('DICT_USER','email', user_id) as email, t.user_id, action from tb1 as t  ;
+			   ┌─dic─────────────┐
+			1. │ alex@mail.ru    │
+			2. │ ivan@yandex.ru  │
+			3. │ petr@google.com │
+			4. │ masha@yahoo.com │
+			   └─────────────────┘
+			4 rows in set. Elapsed: 0.003 sec.
+
+
+# вывести email при помощи dictGet,
+
+select t.user_id, dictGet('DICT_USER','email', user_id) as email, action from tb1 as t  ;
+			Query id: 5e94eeed-a57a-421c-aedc-47f2bb875c7b
+
+				┌─user_id─┬─email────────────┬─action──┐
+			 1. │       1 │ alex@mail.ru     │ action1 │
+			 2. │       2 │ ivan@yandex.ru   │ actmon1 │
+			 3. │       3 │ petr@google.com  │ action1 │
+			 4. │       4 │ masha@yahoo.com  │ iction  │
+			 5. │       5 │ masha@google.com │ actioo1 │
+			 6. │       6 │ sergey@ya.ru     │ action1 │
+			 7. │       1 │ alex@mail.ru     │ action1 │
+			 8. │       2 │ ivan@yandex.ru   │ action! │
+			 9. │       3 │ petr@google.com  │ actionq │
+			10. │       4 │ masha@yahoo.com  │ action1 │
+			11. │       5 │ masha@google.com │ actiOn1 │
+			12. │       6 │ sergey@ya.ru     │ aCtiofq │
+				└─────────┴──────────────────┴─────────┘
+
+			12 rows in set. Elapsed: 0.005 sec.
+
+# email через join словаря
+
+SELECT 
+    tb1.user_id,
+    tb1.action,
+    tb1.expense,
+    dictGet('DICT_USER', 'email', user_id) AS user_email
+FROM db2.tb1
+JOIN db2.DICT_USER
+ON tb1.user_id = db2.DICT_USER.user_id; 
+
+			Query id: 113283fa-a665-4cf1-b88c-d4c23c09419f
+
+				┌─user_id─┬─action──┬────expense─┬─user_email───────┐
+			 1. │       1 │ action1 │  942397217 │ alex@mail.ru     │
+			 2. │       2 │ actmon1 │ 1431980681 │ ivan@yandex.ru   │
+			 3. │       3 │ action1 │ 3225872705 │ petr@google.com  │
+			 4. │       4 │ iction  │ 2696583351 │ masha@yahoo.com  │
+			 5. │       5 │ actioo1 │ 4170833113 │ masha@google.com │
+			 6. │       6 │ action1 │ 1273506263 │ sergey@ya.ru     │
+			 7. │       1 │ action1 │ 3615040699 │ alex@mail.ru     │
+			 8. │       2 │ action! │ 1586758123 │ ivan@yandex.ru   │
+			 9. │       3 │ actionq │  120187363 │ petr@google.com  │
+			10. │       4 │ action1 │ 2458679879 │ masha@yahoo.com  │
+			11. │       5 │ actiOn1 │ 2099969413 │ masha@google.com │
+			12. │       6 │ aCtiofq │ 3835853231 │ sergey@ya.ru     │
+				└─────────┴─────────┴────────────┴──────────────────┘
+
+			12 rows in set. Elapsed: 0.006 sec.
+
+# аккамулятивную сумму expense, c окном по action
+
+select dictGet('DICT_USER','email', user_id) as email, t.user_id, action, sum(expense) over(PARTITION BY action) as sum_action from tb1 as t  ;
+			Query id: 27dee479-68be-4762-a475-f60183f09336
+
+				┌─email────────────┬─user_id─┬─action──┬──sum_action─┐
+			 1. │ sergey@ya.ru     │       6 │ aCtiofq │  3835853231 │
+			 2. │ masha@google.com │       5 │ actiOn1 │  2099969413 │
+			 3. │ ivan@yandex.ru   │       2 │ action! │  1586758123 │
+			 4. │ alex@mail.ru     │       1 │ action1 │ 11515496763 │
+			 5. │ petr@google.com  │       3 │ action1 │ 11515496763 │
+			 6. │ sergey@ya.ru     │       6 │ action1 │ 11515496763 │
+			 7. │ alex@mail.ru     │       1 │ action1 │ 11515496763 │
+			 8. │ masha@yahoo.com  │       4 │ action1 │ 11515496763 │
+			 9. │ petr@google.com  │       3 │ actionq │   120187363 │
+			10. │ ivan@yandex.ru   │       2 │ actmon1 │  1431980681 │
+			11. │ masha@yahoo.com  │       4 │ iction  │  2696583351 │
+			12. │ masha@google.com │       5 │ actioo1 │  4170833113 │
+				└──────────────────┴─────────┴─────────┴─────────────┘
+
+			12 rows in set. Elapsed: 0.008 sec.
+# Колличество уникальных action
+select count(action), action from tb1 as t group by action;
+			Query id: 0504b504-9507-4943-85ca-c270d2aa80e5
+
+			   ┌─count(action)─┬─action──┐
+			1. │             1 │ actionq │
+			2. │             5 │ action1 │
+			3. │             1 │ actioo1 │
+			4. │             1 │ aCtiofq │
+			5. │             1 │ actmon1 │
+			6. │             1 │ action! │
+			7. │             1 │ actiOn1 │
+			8. │             1 │ iction  │
+			   └───────────────┴─────────┘
+
+			8 rows in set. Elapsed: 0.006 sec.
+
+
+# Сумма expence по каждому типу action
+select distinct action, sum(expense) over(PARTITION BY action) as sum_exp_per_action from tb1 as t  ;
+			Query id: e27d4d6b-00bb-4fca-b291-681f796652b2
+
+			   ┌─action──┬─sum_exp_per_action─┐
+			1. │ aCtiofq │         3835853231 │
+			2. │ actiOn1 │         2099969413 │
+			3. │ action! │         1586758123 │
+			4. │ action1 │        11515496763 │
+			5. │ actionq │          120187363 │
+			6. │ actmon1 │         1431980681 │
+			7. │ iction  │         2696583351 │
+			8. │ actioo1 │         4170833113 │
+			   └─────────┴────────────────────┘
+
+			8 rows in set. Elapsed: 0.006 sec.
+
+#Сортировка по email
+select t.user_id, dictGet('DICT_USER','email', user_id) as email, action from tb1 as t  order by email;
+			Query id: d3a58ee7-8d07-4604-aac0-f35c28081936
+
+				┌─user_id─┬─email────────────┬─action──┐
+			 1. │       1 │ alex@mail.ru     │ action1 │
+			 2. │       1 │ alex@mail.ru     │ action1 │
+			 3. │       2 │ ivan@yandex.ru   │ actmon1 │
+			 4. │       2 │ ivan@yandex.ru   │ action! │
+			 5. │       5 │ masha@google.com │ actioo1 │
+			 6. │       5 │ masha@google.com │ actiOn1 │
+			 7. │       4 │ masha@yahoo.com  │ iction  │
+			 8. │       4 │ masha@yahoo.com  │ action1 │
+			 9. │       3 │ petr@google.com  │ action1 │
+			10. │       3 │ petr@google.com  │ actionq │
+			11. │       6 │ sergey@ya.ru     │ action1 │
+			12. │       6 │ sergey@ya.ru     │ aCtiofq │
+				└─────────┴──────────────────┴─────────┘
+
+			12 rows in set. Elapsed: 0.005 sec.

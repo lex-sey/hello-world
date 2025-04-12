@@ -13,6 +13,33 @@ touch /etc/clickhouse-server/config.d/function_config.xml
 
 
 touch /etc/clickhouse-server/user_functions/total_price.py
+echo '
+   import sys
+   import json
+
+   def total_price(quantity, price):
+       return quantity * price
+
+   if __name__ == "__main__":
+       data = json.load(sys.stdin)
+       quantity = data['quantity']
+       price = data['price']
+       print(total_price(quantity, price))
+'
+> /etc/clickhouse-server/user_functions/total_price.py
+
+# Установка пакетов
+sudo apt-get install python3 python3-pip
+
+			Restarting services...
+			 systemctl restart packagekit.service systemd-resolved.service
+
+pip3 install clickhouse-driver
+
+			Successfully installed clickhouse-driver-0.2.9 tzlocal-5.3
+			WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
+
+
 
 # Посмотреть список функций
 SELECT name FROM system.functions;
@@ -56,5 +83,13 @@ Query id: ebc8a699-db4a-420a-ba0d-15ad9b40a812
 
 			2 rows in set. Elapsed: 0.059 sec. Processed 1.60 thousand rows, 311.71 KB (26.95 thousand rows/s., 5.24 MB/s.)
 			Peak memory usage: 0.00 B.
+
+
+# Создать функцию
+CREATE FUNCTION total_price AS 
+'/etc/clickhouse-server/user_functions/total_price.py' 
+RETURNS Float32 
+EXECUTE ON HOST;
+
 
 
