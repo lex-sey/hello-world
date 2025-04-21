@@ -1,0 +1,464 @@
+#ДЗ 20.02.2025
+# Репликация и другие фоновые процессы
+
+# Настройка chkeeper 
+# На разных нодах указываем уникальные идентификаторы <id>[1-3]</id>
+
+vim /etc/clickhouse-keeper/keeper_config.xml
+
+			    <keeper_server>
+			            <server_id>1</server_id>
+                        <raft_configuration>
+                            <server>
+                                <id>1</id>
+            
+                                <!-- Internal port and hostname -->
+                                <hostname>192.168.1.91</hostname>
+                                <port>9234</port>
+                            </server>
+                            <server>
+                                <id>2</id>
+            
+                                <!-- Internal port and hostname -->
+                                <hostname>192.168.1.92</hostname>
+                                <port>9234</port>
+                            </server>
+                            <server>
+                                <id>3</id>
+            
+                                <!-- Internal port and hostname -->
+                                <hostname>192.168.1.93</hostname>
+                                <port>9234</port>
+                            </server>
+            
+                            <!-- Add more servers here -->
+            
+                        </raft_configuration>
+
+systemctl enable clickhouse-keeper.service
+systemctl start clickhouse-server.service
+systemctl status clickhouse-keeper.service
+# issue1: не работала репликация raft между нодами кипера
+# fix: почистить каталоги 
+#/var/lib/clickhouse/coordination/snapshots 
+#/var/lib/clickhouse/coordination/logs
+
+# Настройка clickhouse для работы с chkeeper
+vim /etc/clickhouse-server/config.d/chkeeper.xml
+
+<clickhouse>
+    <zookeeper>
+        <node>
+            <host>192.168.1.91</host>
+            <port>9181</port>
+        </node>
+        <node>
+            <host>192.168.1.92</host>
+            <port>9181</port>
+        </node>
+        <node>
+            <host>192.168.1.93</host>
+            <port>9181</port>
+        </node>
+        <node>
+            <host>localhost</host>
+            <port>9181</port>
+        </node>
+    </zookeeper>
+</clickhouse>
+
+# Настройки кластера для репликации
+# Делаем на каждой ноде кластера
+vim /etc/clickhouse-server/config.d/remote_servers.xml
+<clickhouse>
+   <remote_servers>
+   <replicated_cluster>
+      <shard>
+      <internal_replication>true</internal_replication>
+      <replica>
+         <host>192.168.1.91</host>
+         <port>9000</port>
+      </replica>
+      <replica>
+         <host>192.168.1.92</host>
+         <port>9000</port>
+      </replica>
+      <replica>
+         <host>192.168.1.93</host>
+         <port>9000</port>
+      </replica>
+      </shard>
+   </replicated_cluster>
+   </remote_servers>
+</clickhouse>
+
+# На разных нодах свой номер реплики [1-3]
+vim /etc/clickhouse-server/config.d/macros.xml
+
+<clickhouse>
+    <macros>
+        <shard>01</shard>
+        <replica>0[1-3]</replica>
+    </macros>
+</clickhouse>
+
+# Перед запуском кипера пришлось удалить содержимое директорий иначе не работала raft репликация кипера
+
+rm -rf /var/lib/clickhouse/coordination/logs/*
+rm -rf /var/lib/clickhouse/coordination/snapshots/*
+
+
+# На всех нодах перезапускаем clickhouse
+
+systemctl restart clickhouse-server.service
+
+# Непонятное предупреждение в статусе службы
+systemd[1]: clickhouse-server.service: Supervising process 6461 which is not our child. We'll most likely not noticeing process 6461 which is not our child. We'll most likely not notice when it exits
+Хотя это основной процесс (6461) от которого форкаются остальные
+
+# Создадим базу на одной ноде 192.168.1.93
+
+CREATE DATABASE nyc_taxi;
+
+# Создадим таблицу и зальём данные
+CREATE TABLE nyc_taxi.trips_small (
+    trip_id             UInt32,
+    pickup_datetime     DateTime,
+    dropoff_datetime    DateTime,
+    pickup_longitude    Nullable(Float64),
+    pickup_latitude     Nullable(Float64),
+    dropoff_longitude   Nullable(Float64),
+    dropoff_latitude    Nullable(Float64),
+    passenger_count     UInt8,
+    trip_distance       Float32,
+    fare_amount         Float32,
+    extra               Float32,
+    tip_amount          Float32,
+    tolls_amount        Float32,
+    total_amount        Float32,
+    payment_type        Enum('CSH' = 1, 'CRE' = 2, 'NOC' = 3, 'DIS' = 4, 'UNK' = 5),
+    pickup_ntaname      LowCardinality(String),
+    dropoff_ntaname     LowCardinality(String)
+)
+ENGINE = MergeTree
+PRIMARY KEY (pickup_datetime, dropoff_datetime);
+
+INSERT INTO nyc_taxi.trips_small
+SELECT
+    trip_id,
+    pickup_datetime,
+    dropoff_datetime,
+    pickup_longitude,
+    pickup_latitude,
+    dropoff_longitude,
+    dropoff_latitude,
+    passenger_count,
+    trip_distance,
+    fare_amount,
+    extra,
+    tip_amount,
+    tolls_amount,
+    total_amount,
+    payment_type,
+    pickup_ntaname,
+    dropoff_ntaname
+FROM gcs(
+    'https://storage.googleapis.com/clickhouse-public-datasets/nyc-taxi/trips_{0..2}.gz',
+    'TabSeparatedWithNames'
+);
+
+SELECT count()
+FROM nyc_taxi.trips_small;
+
+			Query id: 08950153-13e0-4e4e-a83d-d825ad0c8149
+			   ┌─count()─┐
+			1. │ 3000317 │ -- 3.00 million
+			   └─────────┘
+			1 row in set. Elapsed: 0.002 sec.
+
+# Создадим базу на кластере
+CREATE DATABASE nyc_taxi on cluster replicated_cluster;
+
+			Query id: 97af6d8c-dd55-4f01-ad93-7ba5af40a92e
+
+┌─host─────────┬─port─┬─status─┬─error───────────────────────────────────────────────────────────────────────────┬─num_hosts_remaining─┬─num_hosts_active─┐
+│ 192.168.1.92 │ 9000 │      0 │                                                                                                                          │                    │ 192.168.1.93 │ 9000 │     82 │ Code: 82. DB::Exception: Database nyc_taxi already exists. (DATABASE_ALREADY_EXISTS) (version 25.3.2.39 (official build)) │                   │ 192.168.1.91 │ 9000 │      0 │                                                                                                                           │            └──────────────┴──────┴────────┴───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┴
+# На одной ноде уже создана эта база и залиты данные
+use nyc_taxy
+show create nyc_taxi.trips_small
+
+			CREATE TABLE nyc_taxi.trips_small                                               
+			(                                                                               
+				`trip_id` UInt32,                                                           
+				`pickup_datetime` DateTime,                                                 
+				`dropoff_datetime` DateTime,                                                
+				`pickup_longitude` Nullable(Float64),                                       
+				`pickup_latitude` Nullable(Float64),                                        
+				`dropoff_longitude` Nullable(Float64),                                      
+				`dropoff_latitude` Nullable(Float64),                                       
+				`passenger_count` UInt8,                                                    
+				`trip_distance` Float32,                                                    
+				`fare_amount` Float32,                                                      
+				`extra` Float32,                                                            
+				`tip_amount` Float32,                                                       
+				`tolls_amount` Float32,                                                     
+				`total_amount` Float32,                                                     
+				`payment_type` Enum8('CSH' = 1, 'CRE' = 2, 'NOC' = 3, 'DIS' = 4, 'UNK' = 5),
+				`pickup_ntaname` LowCardinality(String),                                    
+				`dropoff_ntaname` LowCardinality(String)                                    
+			)                                                                               
+			ENGINE = MergeTree                                                              
+			PRIMARY KEY (pickup_datetime, dropoff_datetime)                                 
+			ORDER BY (pickup_datetime, dropoff_datetime)                                    
+			SETTINGS index_granularity = 8192                                               
+
+
+
+# Конвертируем таблицу в реплицируемую
+# На ноде 192.168.1.93 создаём пустую реплцируемую таблицу
+
+--DROP TABLE nyc_taxi.trips_small_replicated on cluster replicated_cluster sync
+
+CREATE TABLE nyc_taxi.trips_small_replicated ON CLUSTER replicated_cluster                                               
+(                                                                               
+`trip_id` UInt32,                                                           
+`pickup_datetime` DateTime,                                                 
+`dropoff_datetime` DateTime,                                                
+`pickup_longitude` Nullable(Float64),                                       
+`pickup_latitude` Nullable(Float64),                                        
+`dropoff_longitude` Nullable(Float64),                                      
+`dropoff_latitude` Nullable(Float64),                                       
+`passenger_count` UInt8,                                                    
+`trip_distance` Float32,                                                    
+`fare_amount` Float32,                                                      
+`extra` Float32,                                                            
+`tip_amount` Float32,                                                       
+`tolls_amount` Float32,                                                     
+`total_amount` Float32,                                                     
+`payment_type` Enum8('CSH' = 1, 'CRE' = 2, 'NOC' = 3, 'DIS' = 4, 'UNK' = 5),
+`pickup_ntaname` LowCardinality(String),                                    
+`dropoff_ntaname` LowCardinality(String)                                    
+)                                                                               
+ENGINE = ReplicatedMergeTree('/clickhouse/shard_{shard}/{database}/{table}','{replica}')                                                              
+PRIMARY KEY (pickup_datetime, dropoff_datetime)                                 
+ORDER BY (pickup_datetime, dropoff_datetime)                                    
+SETTINGS index_granularity = 8192;                                               
+
+Query id: e86fe437-e517-4f88-b0fa-833957043bbd
+
+   ┌─host─────────┬─port─┬─status─┬─error─┬─num_hosts_remaining─┬─num_hosts_active─┐
+1. │ 192.168.1.92 │ 9000 │      0 │       │                   2 │                2 │
+   └──────────────┴──────┴────────┴───────┴─────────────────────┴──────────────────┘
+   ┌─host─────────┬─port─┬─status─┬─error─┬─num_hosts_remaining─┬─num_hosts_active─┐
+2. │ 192.168.1.93 │ 9000 │      0 │       │                   1 │                1 │
+   └──────────────┴──────┴────────┴───────┴─────────────────────┴──────────────────┘
+   ┌─host─────────┬─port─┬─status─┬─error─┬─num_hosts_remaining─┬─num_hosts_active─┐
+3. │ 192.168.1.91 │ 9000 │      0 │       │                   0 │                0 │
+   └──────────────┴──────┴────────┴───────┴─────────────────────┴──────────────────┘
+
+3 rows in set. Elapsed: 1.768 sec.
+
+# Проверяем наличие записей 
+SELECT count() FROM nyc_taxi.trips_small_replicated
+
+			Query id: 4d990ead-7fc8-411c-8d62-adb5e7d4bba5
+
+			   ┌─count()─┐
+			1. │       0 │
+			   └─────────┘
+
+			1 row in set. Elapsed: 0.003 sec.
+
+SELECT DISTINCT partition_id FROM system.parts where database || ‘.’ || table == ‘nyc_taxi.trips_small’;”
+
+			Query id: a82ebbe2-d491-4da8-be03-c67d2e6fc6a6
+			   ┌─partition_id─┐
+			1. │ all          │
+			   └──────────────┘
+			1 row in set. Elapsed: 0.005 sec.
+
+ALTER TABLE nyc_taxi.trips_small_replicated ATTACH PARTITION ID ‘all’ FROM nyc_taxi.trips_small;
+
+select count() from nyc_taxi.trips_small_replicated;
+
+				Query id: a796a021-a437-416c-8392-768535003cd2
+
+				   ┌─count()─┐
+				1. │ 3000317 │ -- 3.00 million
+				   └─────────┘
+
+				1 row in set. Elapsed: 0.005 sec.
+
+# Проверяем на других нодах
+
+select count() from nyc_taxi.trips_small_replicated;
+
+			Query id: c19f2173-256b-47e8-b51e-34878036df08
+
+			   ┌─count()─┐
+			1. │       0 │
+			   └─────────┘
+
+			1 row in set. Elapsed: 0.010 sec.
+
+# Проверяем состояние репликации
+select * from system.replicas;
+
+			Row 1:
+			──────
+			database:                    nyc_taxi
+			table:                       trips_small_replicated
+			engine:                      ReplicatedMergeTree
+			is_leader:                   1
+			can_become_leader:           1
+			is_readonly:                 0
+			readonly_start_time:         ᴺᵁᴸᴸ
+			is_session_expired:          0
+			future_parts:                0
+			parts_to_check:              0
+			zookeeper_name:              default
+			zookeeper_path:              /clickhouse/shard_01/nyc_taxi/trips_small_replicated
+			replica_name:                01
+			replica_path:                /clickhouse/shard_01/nyc_taxi/trips_small_replicated/replicas/01
+			columns_version:             -1
+			queue_size:                  1
+			inserts_in_queue:            0
+			merges_in_queue:             0
+			part_mutations_in_queue:     0
+			queue_oldest_time:           2025-04-17 17:22:13
+			inserts_oldest_time:         1970-01-01 03:00:00
+			merges_oldest_time:          1970-01-01 03:00:00
+			part_mutations_oldest_time:  1970-01-01 03:00:00
+			oldest_part_to_get:
+			oldest_part_to_merge_to:
+			oldest_part_to_mutate_to:
+			log_max_index:               0
+			log_pointer:                 1
+			last_queue_update:           2025-04-17 17:22:13
+			absolute_delay:              0
+			total_replicas:              3
+			active_replicas:             3
+			lost_part_count:             0
+			last_queue_update_exception:
+			zookeeper_exception:
+			replica_is_active:           {'01':1,'02':1,'03':1}
+
+			1 row in set. Elapsed: 0.009 sec.
+
+# Есть очередь на репликацию 
+
+select * from system.replication_queue;
+last_exception:         Code: 198. DB::NetException: Not found address of host: scylla3. (DNS_ERROR) 
+queue_size:                  1
+
+#  Решение указать ip в конфиге иначе по умолчанию используется вывод команды hostname -f
+
+  <interserver_http_host>192.168.1.9[1-3]</interserver_http_host>
+
+# Проверяем репликацию
+select * from system.replicas;
+			queue_size:                  0
+			replica_is_active:           {'03':1,'02':1,'01':1}
+
+# Проверяем реплицируемую таблицу на других нодах
+select count() from trips_small_replicated
+
+			Query id: 5a919907-6f7a-47ef-b512-dfe63bfd7c24
+
+			   ┌─count()─┐
+			1. │ 3000317 │ -- 3.00 million
+			   └─────────┘
+
+			1 row in set. Elapsed: 0.010 sec.
+
+# Вывод информации по партам на репликах в разных форматах
+SELECT
+getMacro('replica'),
+database, table, name, modification_time
+FROM remote('192.168.1.91,192.168.1.92,192.168.1.93',system.parts, 'default', 'asd123') where database = 'nyc_taxi';
+
+			Query id: 803af976-2aa1-44f5-90e6-b7e5a3b7fb01
+				┌─getMacro('replica')─┬─database─┬─table──────────────────┬─name──────┬───modification_time─┐
+			 1. │ 03                  │ nyc_taxi │ trips_small            │ all_1_1_0 │ 2025-04-12 15:45:31 │
+			 2. │ 03                  │ nyc_taxi │ trips_small            │ all_2_2_0 │ 2025-04-12 15:45:34 │
+			 3. │ 03                  │ nyc_taxi │ trips_small            │ all_3_3_0 │ 2025-04-12 15:45:34 │
+			 4. │ 03                  │ nyc_taxi │ trips_small_replicated │ all_1_1_0 │ 2025-04-17 17:22:13 │
+			 5. │ 03                  │ nyc_taxi │ trips_small_replicated │ all_2_2_0 │ 2025-04-17 17:22:13 │
+			 6. │ 03                  │ nyc_taxi │ trips_small_replicated │ all_3_3_0 │ 2025-04-17 17:22:13 │
+			 7. │ 02                  │ nyc_taxi │ trips_small_replicated │ all_1_1_0 │ 2025-04-18 09:26:36 │
+			 8. │ 02                  │ nyc_taxi │ trips_small_replicated │ all_2_2_0 │ 2025-04-18 09:26:46 │
+			 9. │ 02                  │ nyc_taxi │ trips_small_replicated │ all_3_3_0 │ 2025-04-18 09:26:47 │
+			10. │ 01                  │ nyc_taxi │ trips_small_replicated │ all_1_1_0 │ 2025-04-18 09:26:14 │
+			11. │ 01                  │ nyc_taxi │ trips_small_replicated │ all_2_2_0 │ 2025-04-18 09:26:16 │
+			12. │ 01                  │ nyc_taxi │ trips_small_replicated │ all_3_3_0 │ 2025-04-18 09:26:18 │
+				└─────────────────────┴──────────┴────────────────────────┴───────────┴─────────────────────┘
+			12 rows in set. Elapsed: 0.032 sec.
+
+SELECT
+getMacro('replica'),
+database, table, name, modification_time
+FROM remote('192.168.1.91,192.168.1.92,192.168.1.93',system.parts, 'default', 'asd123') where database = 'nyc_taxi' FORMAT JSONEachRow;
+
+			Query id: 52e760a1-23bd-4314-b788-51863a95f649
+
+			{"getMacro('replica')":"03","database":"nyc_taxi","table":"trips_small","name":"all_1_1_0","modification_time":"2025-04-12 15:45:31"}
+			{"getMacro('replica')":"03","database":"nyc_taxi","table":"trips_small","name":"all_2_2_0","modification_time":"2025-04-12 15:45:34"}
+			{"getMacro('replica')":"03","database":"nyc_taxi","table":"trips_small","name":"all_3_3_0","modification_time":"2025-04-12 15:45:34"}
+			{"getMacro('replica')":"03","database":"nyc_taxi","table":"trips_small_replicated","name":"all_1_1_0","modification_time":"2025-04-17 17:22:13"}
+			{"getMacro('replica')":"03","database":"nyc_taxi","table":"trips_small_replicated","name":"all_2_2_0","modification_time":"2025-04-17 17:22:13"}
+			{"getMacro('replica')":"03","database":"nyc_taxi","table":"trips_small_replicated","name":"all_3_3_0","modification_time":"2025-04-17 17:22:13"}
+			{"getMacro('replica')":"01","database":"nyc_taxi","table":"trips_small_replicated","name":"all_1_1_0","modification_time":"2025-04-18 09:26:14"}
+			{"getMacro('replica')":"01","database":"nyc_taxi","table":"trips_small_replicated","name":"all_2_2_0","modification_time":"2025-04-18 09:26:16"}
+			{"getMacro('replica')":"01","database":"nyc_taxi","table":"trips_small_replicated","name":"all_3_3_0","modification_time":"2025-04-18 09:26:18"}
+			{"getMacro('replica')":"02","database":"nyc_taxi","table":"trips_small_replicated","name":"all_1_1_0","modification_time":"2025-04-18 09:26:36"}
+			{"getMacro('replica')":"02","database":"nyc_taxi","table":"trips_small_replicated","name":"all_2_2_0","modification_time":"2025-04-18 09:26:46"}
+			{"getMacro('replica')":"02","database":"nyc_taxi","table":"trips_small_replicated","name":"all_3_3_0","modification_time":"2025-04-18 09:26:47"}
+
+			12 rows in set. Elapsed: 0.023 sec.
+
+# Добавить/выбрать колонку с типом Date в таблице, добавить TTL на таблицу «хранить последние 7 дней». Предоставить результат запроса «SHOW CREATE TABLE таблица» на проверку
+# Сделал более 7 дней - применить кодек сжатия, более 14 дней - удалить
+
+ALTER TABLE trips_small_replicated MODIFY TTL pickup_datetime + INTERVAL 7 DAY RECOMPRESS CODEC(ZSTD(1)), pickup_datetime + INTERVAL 14 DAY DELETE;
+
+show table trips_small_replicated;
+
+
+Query id: 0f990e96-e37c-4b5d-bb36-4f9a22552950
+
+   ┌─statement──────────────────────────────────────────────────────────────────────────────────────────────┐
+1. │ CREATE TABLE nyc_taxi.trips_small_replicated                                                          ↴│
+   │↳(                                                                                                     ↴│
+   │↳    `trip_id` UInt32,                                                                                 ↴│
+   │↳    `pickup_datetime` DateTime,                                                                       ↴│
+   │↳    `dropoff_datetime` DateTime,                                                                      ↴│
+   │↳    `pickup_longitude` Nullable(Float64),                                                             ↴│
+   │↳    `pickup_latitude` Nullable(Float64),                                                              ↴│
+   │↳    `dropoff_longitude` Nullable(Float64),                                                            ↴│
+   │↳    `dropoff_latitude` Nullable(Float64),                                                             ↴│
+   │↳    `passenger_count` UInt8,                                                                          ↴│
+   │↳    `trip_distance` Float32,                                                                          ↴│
+   │↳    `fare_amount` Float32,                                                                            ↴│
+   │↳    `extra` Float32,                                                                                  ↴│
+   │↳    `tip_amount` Float32,                                                                             ↴│
+   │↳    `tolls_amount` Float32,                                                                           ↴│
+   │↳    `total_amount` Float32,                                                                           ↴│
+   │↳    `payment_type` Enum8('CSH' = 1, 'CRE' = 2, 'NOC' = 3, 'DIS' = 4, 'UNK' = 5),                      ↴│
+   │↳    `pickup_ntaname` LowCardinality(String),                                                          ↴│
+   │↳    `dropoff_ntaname` LowCardinality(String)                                                          ↴│
+   │↳)                                                                                                     ↴│
+   │↳ENGINE = ReplicatedMergeTree('/clickhouse/shard_{shard}/nyc_taxi/trips_small_replicated', '{replica}')↴│
+   │↳PRIMARY KEY (pickup_datetime, dropoff_datetime)                                                       ↴│
+   │↳ORDER BY (pickup_datetime, dropoff_datetime)                                                          ↴│
+   │↳TTL pickup_datetime + toIntervalDay(7) RECOMPRESS CODEC(ZSTD(1)), pickup_datetime + toIntervalDay(14) ↴│
+   │↳SETTINGS index_granularity = 8192                                                                      │
+   └────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+1 row in set. Elapsed: 0.002 sec.
+
+
+
+
+
+
+
