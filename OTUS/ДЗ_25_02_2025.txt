@@ -183,4 +183,18 @@ Query id: d1680454-448b-4611-ad99-53396e0480ca
 			1 row in set. Elapsed: 0.006 sec.
 
 # Удаление отсоединённой партиции
+set allow_drop_detached = TRUE;
 ALTER TABLE part_table_replicated DROP DETACHED PARTITION 202411;
+
+			Query id: b98e6dfc-ed37-4a23-88cc-6bdf22c1df75
+
+			Ok.
+
+			0 rows in set. Elapsed: 0.004 sec.
+
+# Проверка данных в таблице
+select * from part_table_replicated where activity_date::text like '%2024-11%' order by  activity_date;
+
+		Query id: 5ba599a0-e6ab-4961-85db-0c1a32052044
+		Ok.
+		0 rows in set. Elapsed: 0.014 sec.
