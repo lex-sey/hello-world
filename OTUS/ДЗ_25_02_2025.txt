@@ -195,6 +195,6 @@ ALTER TABLE part_table_replicated DROP DETACHED PARTITION 202411;
 # Проверка данных в таблице
 select * from part_table_replicated where activity_date::text like '%2024-11%' order by  activity_date;
 
-		Query id: 5ba599a0-e6ab-4961-85db-0c1a32052044
-		Ok.
-		0 rows in set. Elapsed: 0.014 sec.
+			Query id: 5ba599a0-e6ab-4961-85db-0c1a32052044
+			Ok.
+			0 rows in set. Elapsed: 0.014 sec.
