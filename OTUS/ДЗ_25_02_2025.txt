@@ -1,0 +1,186 @@
+#ДЗ 25.02.2025
+# Мутации данных
+
+CREATE DATABASE db2 ON CLUSTER all_sharded
+
+			Query id: b93ac885-f0d3-43cb-b407-05d094a6f392
+
+			   ┌─host─────────┬─port─┬─status─┬─error─┬─num_hosts_remaining─┬─num_hosts_active─┐
+			1. │ 192.168.1.92 │ 9000 │      0 │       │                   2 │                1 │
+			2. │ 192.168.1.93 │ 9000 │      0 │       │                   1 │                1 │
+			   └──────────────┴──────┴────────┴───────┴─────────────────────┴──────────────────┘
+			   ┌─host─────────┬─port─┬─status─┬─error─┬─num_hosts_remaining─┬─num_hosts_active─┐
+			3. │ 192.168.1.91 │ 9000 │      0 │       │                   0 │                0 │
+			   └──────────────┴──────┴────────┴───────┴─────────────────────┴──────────────────┘
+
+			3 rows in set. Elapsed: 0.657 sec.
+
+
+user_id (UInt32) — идентификатор пользователя
+activity_type (String) — тип активности (например, 'login', 'logout', 'purchase')
+activity_date (DateTime) — дата и время активности
+
+--DROP TABLE db2.part_table_replicated ON CLUSTER all_sharded SYNC;
+
+CREATE TABLE db2.part_table_replicated ON CLUSTER all_sharded                                               
+(                                                                               
+`user_id` UInt32,
+`activity_type` LowCardinality(String),
+`activity_date` DateTime,                                                 
+)                                                                               
+ENGINE = ReplicatedMergeTree('/clickhouse/shard_{shard}/{database}/{table}','{replica}')                                                              
+PRIMARY KEY (user_id)                                 
+ORDER BY (user_id)                                    
+PARTITION BY toYYYYMM(activity_date)
+SETTINGS index_granularity = 8192;
+
+			Query id: c7fe4c3a-5498-4790-b0f4-1eed18359301
+			   ┌─host─────────┬─port─┬─status─┬─error─┬─num_hosts_remaining─┬─num_hosts_active─┐
+			1. │ 192.168.1.93 │ 9000 │      0 │       │                   2 │                1 │
+			2. │ 192.168.1.92 │ 9000 │      0 │       │                   1 │                1 │
+			   └──────────────┴──────┴────────┴───────┴─────────────────────┴──────────────────┘
+			   ┌─host─────────┬─port─┬─status─┬─error─┬─num_hosts_remaining─┬─num_hosts_active─┐
+			3. │ 192.168.1.91 │ 9000 │      0 │       │                   0 │                0 │
+			   └──────────────┴──────┴────────┴───────┴─────────────────────┴──────────────────┘
+			3 rows in set. Elapsed: 0.809 sec.
+
+
+insert into db2.part_table_replicated (user_id, activity_type, activity_date) select number, 'action' || round(randCanonical() * 10 ), toDate('2024-01-01') + randUniform(0,1) * 365 from numbers(1,10);
+
+select * from db2.part_table_replicated where user_id = 8;
+
+			Query id: 3a044854-bf27-40a3-bea7-6e499ee20882
+			   ┌─user_id─┬─activity_type─┬───────activity_date─┐
+			1. │       8 │ action9       │ 2024-11-16 00:00:00 │
+			2. │       8 │ action0       │ 2024-03-18 00:00:00 │
+			   └─────────┴───────────────┴─────────────────────┘
+			2 rows in set. Elapsed: 0.020 sec.
+
+ALTER TABLE db2.part_table_replicated UPDATE activity_type = 'action0' where user_id=8;
+
+			Query id: 58f0fd2c-1a64-4dbb-a71f-4d681be9b83d
+
+			Ok.
+
+			0 rows in set. Elapsed: 0.177 sec.
+
+# странно что 0 rows in set ? 
+
+select * from part_table_replicated where user_id = 8;
+
+		Query id: fe572a34-c4cd-465d-81bd-97869ddd2007
+		   ┌─user_id─┬─activity_type─┬───────activity_date─┐
+		1. │       8 │ action0       │ 2024-11-16 00:00:00 │
+		2. │       8 │ action0       │ 2024-03-18 00:00:00 │
+		   └─────────┴───────────────┴─────────────────────┘
+		2 rows in set. Elapsed: 0.016 sec.
+
+# Прогресс мутаций
+SELECT *FROM system.mutations
+
+			Row 1:
+			──────
+			database:                    db2
+			table:                       part_table_replicated
+			mutation_id:                 0000000000
+			command:                     (UPDATE activity_type = 'action0' WHERE user_id = 8)
+			create_time:                 2025-04-25 15:10:57
+			block_numbers.partition_id:  ['202401','202402','202403','202404','202406','202407','202408','202409','202411','202412']
+			block_numbers.number:        [1,1,2,2,1,2,1,1,2,1]
+			parts_to_do_names:           []
+			parts_to_do:                 0
+			is_done:                     1
+			is_killed:                   0
+			latest_failed_part:
+			latest_fail_time:            1970-01-01 03:00:00
+			latest_fail_reason:
+			latest_fail_error_code_name:
+
+# Список партиций
+
+select partition from system.parts where table = 'part_table_replicated';
+
+Query id: 288a69a8-3a0b-4333-91de-b50d3c80a06e
+
+    ┌─partition─┐
+ 1. │ 202401    │
+ 2. │ 202402    │
+ 3. │ 202403    │
+ 4. │ 202403    │
+ 5. │ 202404    │
+ 6. │ 202404    │
+ 7. │ 202406    │
+ 8. │ 202407    │
+ 9. │ 202407    │
+10. │ 202408    │
+11. │ 202409    │
+12. │ 202411    │
+13. │ 202411    │
+14. │ 202412    │
+    └───────────┘
+
+14 rows in set. Elapsed: 0.004 sec.
+
+# select * from part_table_replicated where activity_date::text like '%2024-11%' order by  activity_date;
+
+			Query id: d5996f1e-9b70-4a13-90db-20dc611d50d6
+			   ┌─user_id─┬─activity_type─┬───────activity_date─┐
+			1. │       3 │ action0       │ 2024-11-14 00:00:00 │
+			2. │       8 │ action0       │ 2024-11-16 00:00:00 │
+			   └─────────┴───────────────┴─────────────────────┘
+			2 rows in set. Elapsed: 0.012 sec.
+
+# Отсоединение парта
+ALTER TABLE part_table_replicated DETACH PARTITION 202411;
+
+			Query id: af40576f-2ec2-493e-a9f8-ef5608a7ce53
+
+			Ok.
+
+			0 rows in set. Elapsed: 0.166 sec.
+
+
+# Проверка удаления
+select * from part_table_replicated where activity_date::text like '%2024-11%' order by  activity_date;
+			Query id: f4de2c4c-6e56-4390-b55c-9c32ff4d3b90
+			Ok.
+			0 rows in set. Elapsed: 0.011 sec.
+
+select partition from system.parts where table = 'part_table_replicated';
+
+				┌─partition─┐
+			 1. │ 202401    │
+			 2. │ 202402    │
+			 3. │ 202403    │
+			 4. │ 202403    │
+			 5. │ 202404    │
+			 6. │ 202406    │
+			 7. │ 202407    │
+			 8. │ 202407    │
+			 9. │ 202408    │
+			10. │ 202409    │
+			11. │ 202412    │
+				└───────────┘
+
+select * FROM system.detached_parts;\G
+
+Query id: d1680454-448b-4611-ad99-53396e0480ca
+
+			Row 1:
+			──────
+			database:          db2
+			table:             part_table_replicated
+			partition_id:      202411
+			name:              202411_0_1_1_6
+			bytes_on_disk:     870
+			modification_time: 2025-04-25 23:13:57
+			disk:              default
+			path:              /var/lib/clickhouse/store/6d0/6d04d913-9ff7-4f50-a731-7cbb265f7063/detached/202411_0_1_1_6
+			reason:
+			min_block_number:  0
+			max_block_number:  1
+			level:             1
+			1 row in set. Elapsed: 0.006 sec.
+
+# Удаление отсоединённой партиции
+ALTER TABLE part_table_replicated DROP DETACHED PARTITION 202411;
