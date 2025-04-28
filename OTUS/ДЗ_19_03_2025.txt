@@ -1,7 +1,7 @@
-#ÄÇ 13.03.2025
-# storage polycy è backup
+#Ð”Ð— 13.03.2025
+# storage polycy Ð¸ backup
 
-# óñòàíîâêà minio
+# ÑƒÑÑ‚Ð°Ð½Ð¾Ð²ÐºÐ° minio
 
 apt update
 cd /tmp
@@ -27,7 +27,7 @@ sudo systemctl daemon-reload
 sudo systemctl enable minio
 sudo systemctl start minio
 
-# óñòàíîâêà clickhouse backup
+# ÑƒÑÑ‚Ð°Ð½Ð¾Ð²ÐºÐ° clickhouse backup
 
 wget https://github.com/Altinity/clickhouse-backup/releases/download/v2.6.15/clickhouse-backup-linux-amd64.tar.gz
 
@@ -53,16 +53,16 @@ s3:
     access_key: "S29nEOu5Murn23fZIzLk"
     secret_key: "C0BwNnrN6U6ODiftnsrooKsPK5O2906ixwaydUhI"
 
-# ñîçäàíèå ëîêàëüíîãî áýêàïà
+# ÑÐ¾Ð·Ð´Ð°Ð½Ð¸Ðµ Ð»Ð¾ÐºÐ°Ð»ÑŒÐ½Ð¾Ð³Ð¾ Ð±ÑÐºÐ°Ð¿Ð°
 clickhouse-backup create mybackup
 ls -la /var/lib/clickhouse/backup/mybackup/
 
-			drwxr-x--- 2 clickhouse clickhouse 4096 àïð 28 19:17 access
-			drwxr-x--- 4 clickhouse clickhouse 4096 àïð 28 19:17 metadata
-			-rw-r----- 1 clickhouse clickhouse 1096 àïð 28 19:17 metadata.json
-			drwxr-x--- 4 clickhouse clickhouse 4096 àïð 28 19:17 shadow
+			drwxr-x--- 2 clickhouse clickhouse 4096 Ð°Ð¿Ñ€ 28 19:17 access
+			drwxr-x--- 4 clickhouse clickhouse 4096 Ð°Ð¿Ñ€ 28 19:17 metadata
+			-rw-r----- 1 clickhouse clickhouse 1096 Ð°Ð¿Ñ€ 28 19:17 metadata.json
+			drwxr-x--- 4 clickhouse clickhouse 4096 Ð°Ð¿Ñ€ 28 19:17 shadow
 
-# Çàãðóçêà â s3
+# Ð—Ð°Ð³Ñ€ÑƒÐ·ÐºÐ° Ð² s3
 clickhouse-backup upload mybackup
 
 			2025-04-28 19:37:28.935 INF pkg/clickhouse/clickhouse.go:131 > clickhouse connection prepared: tcp://localhost:9000 run ping
@@ -83,14 +83,14 @@ clickhouse-backup upload mybackup
 			2025-04-28 19:37:32.780 INF pkg/backup/upload.go:256 > done backup=mybackup duration=3.845s object_disk_size=0B operation=upload upload_size=41.09MiB version=2.6.15
 			2025-04-28 19:37:32.780 INF pkg/clickhouse/clickhouse.go:336 > clickhouse connection closed
 
-# Ïðîâåðêà ÷òî ôàéëû çàãðóæåíû
+# ÐŸÑ€Ð¾Ð²ÐµÑ€ÐºÐ° Ñ‡Ñ‚Ð¾ Ñ„Ð°Ð¹Ð»Ñ‹ Ð·Ð°Ð³Ñ€ÑƒÐ¶ÐµÐ½Ñ‹
 
 ls -la /mnt/data/clickhouse/mybackup/
 
-			drwxr-xr-x 2 root root 4096 àïð 28 19:37 access.tar
-			drwxr-xr-x 4 root root 4096 àïð 28 19:37 metadata
-			drwxr-xr-x 2 root root 4096 àïð 28 19:37 metadata.json
-			drwxr-xr-x 4 root root 4096 àïð 28 19:37 shadow
+			drwxr-xr-x 2 root root 4096 Ð°Ð¿Ñ€ 28 19:37 access.tar
+			drwxr-xr-x 4 root root 4096 Ð°Ð¿Ñ€ 28 19:37 metadata
+			drwxr-xr-x 2 root root 4096 Ð°Ð¿Ñ€ 28 19:37 metadata.json
+			drwxr-xr-x 4 root root 4096 Ð°Ð¿Ñ€ 28 19:37 shadow
 
 # 
 clickhouse-client
@@ -98,63 +98,63 @@ use db2
 
 SELECT * FROM part_table_replicated
 
-				--user_id-T-activity_type-T-------activity_date-¬
-			 1. ¦       6 ¦ action1       ¦ 2024-09-25 00:00:00 ¦
-			 2. ¦       9 ¦ action4       ¦ 2024-09-22 00:00:00 ¦
-			 3. ¦       2 ¦ action7       ¦ 2024-12-18 00:00:00 ¦
-			 4. ¦       4 ¦ action9       ¦ 2024-07-26 00:00:00 ¦
-			 5. ¦       1 ¦ action0       ¦ 2024-06-07 00:00:00 ¦
-			 6. ¦       2 ¦ action2       ¦ 2024-06-11 00:00:00 ¦
-			 7. ¦       7 ¦ action5       ¦ 2024-06-01 00:00:00 ¦
-			 8. ¦       1 ¦ action9       ¦ 2024-03-08 00:00:00 ¦
-			 9. ¦       8 ¦ action0       ¦ 2024-03-18 00:00:00 ¦
-			10. ¦       5 ¦ action1       ¦ 2024-02-25 00:00:00 ¦
-			11. ¦       7 ¦ action4       ¦ 2024-01-10 00:00:00 ¦
-			12. ¦       5 ¦ action6       ¦ 2024-08-21 00:00:00 ¦
-			13. ¦       9 ¦ action5       ¦ 2024-08-06 00:00:00 ¦
-			14. ¦       4 ¦ action7       ¦ 2024-07-19 00:00:00 ¦
-			15. ¦       6 ¦ action3       ¦ 2024-07-10 00:00:00 ¦
-			16. ¦      10 ¦ action8       ¦ 2024-04-10 00:00:00 ¦
-			17. ¦      10 ¦ action2       ¦ 2024-04-23 00:00:00 ¦
-			18. ¦       3 ¦ action5       ¦ 2024-03-24 00:00:00 ¦
+				--user_id-T-activity_type-T-------activity_date-Â¬
+			 1. Â¦       6 Â¦ action1       Â¦ 2024-09-25 00:00:00 Â¦
+			 2. Â¦       9 Â¦ action4       Â¦ 2024-09-22 00:00:00 Â¦
+			 3. Â¦       2 Â¦ action7       Â¦ 2024-12-18 00:00:00 Â¦
+			 4. Â¦       4 Â¦ action9       Â¦ 2024-07-26 00:00:00 Â¦
+			 5. Â¦       1 Â¦ action0       Â¦ 2024-06-07 00:00:00 Â¦
+			 6. Â¦       2 Â¦ action2       Â¦ 2024-06-11 00:00:00 Â¦
+			 7. Â¦       7 Â¦ action5       Â¦ 2024-06-01 00:00:00 Â¦
+			 8. Â¦       1 Â¦ action9       Â¦ 2024-03-08 00:00:00 Â¦
+			 9. Â¦       8 Â¦ action0       Â¦ 2024-03-18 00:00:00 Â¦
+			10. Â¦       5 Â¦ action1       Â¦ 2024-02-25 00:00:00 Â¦
+			11. Â¦       7 Â¦ action4       Â¦ 2024-01-10 00:00:00 Â¦
+			12. Â¦       5 Â¦ action6       Â¦ 2024-08-21 00:00:00 Â¦
+			13. Â¦       9 Â¦ action5       Â¦ 2024-08-06 00:00:00 Â¦
+			14. Â¦       4 Â¦ action7       Â¦ 2024-07-19 00:00:00 Â¦
+			15. Â¦       6 Â¦ action3       Â¦ 2024-07-10 00:00:00 Â¦
+			16. Â¦      10 Â¦ action8       Â¦ 2024-04-10 00:00:00 Â¦
+			17. Â¦      10 Â¦ action2       Â¦ 2024-04-23 00:00:00 Â¦
+			18. Â¦       3 Â¦ action5       Â¦ 2024-03-24 00:00:00 Â¦
 				L---------+---------------+----------------------
 
-# Óäàëèì çàïèñè
+# Ð£Ð´Ð°Ð»Ð¸Ð¼ Ð·Ð°Ð¿Ð¸ÑÐ¸
 delete from part_table_replicated where user_id = 10;
 
 			SELECT * FROM part_table_replicated
-				--user_id-T-activity_type-T-------activity_date-¬
-			 1. ¦       6 ¦ action1       ¦ 2024-09-25 00:00:00 ¦
-			 2. ¦       9 ¦ action4       ¦ 2024-09-22 00:00:00 ¦
-			 3. ¦       2 ¦ action7       ¦ 2024-12-18 00:00:00 ¦
-			 4. ¦       4 ¦ action9       ¦ 2024-07-26 00:00:00 ¦
-			 5. ¦       1 ¦ action0       ¦ 2024-06-07 00:00:00 ¦
-			 6. ¦       2 ¦ action2       ¦ 2024-06-11 00:00:00 ¦
-			 7. ¦       7 ¦ action5       ¦ 2024-06-01 00:00:00 ¦
-			 8. ¦       1 ¦ action9       ¦ 2024-03-08 00:00:00 ¦
-			 9. ¦       8 ¦ action0       ¦ 2024-03-18 00:00:00 ¦
-			10. ¦       5 ¦ action1       ¦ 2024-02-25 00:00:00 ¦
-			11. ¦       7 ¦ action4       ¦ 2024-01-10 00:00:00 ¦
-			12. ¦       5 ¦ action6       ¦ 2024-08-21 00:00:00 ¦
-			13. ¦       9 ¦ action5       ¦ 2024-08-06 00:00:00 ¦
-			14. ¦       4 ¦ action7       ¦ 2024-07-19 00:00:00 ¦
-			15. ¦       6 ¦ action3       ¦ 2024-07-10 00:00:00 ¦
-			16. ¦       3 ¦ action5       ¦ 2024-03-24 00:00:00 ¦
+				--user_id-T-activity_type-T-------activity_date-Â¬
+			 1. Â¦       6 Â¦ action1       Â¦ 2024-09-25 00:00:00 Â¦
+			 2. Â¦       9 Â¦ action4       Â¦ 2024-09-22 00:00:00 Â¦
+			 3. Â¦       2 Â¦ action7       Â¦ 2024-12-18 00:00:00 Â¦
+			 4. Â¦       4 Â¦ action9       Â¦ 2024-07-26 00:00:00 Â¦
+			 5. Â¦       1 Â¦ action0       Â¦ 2024-06-07 00:00:00 Â¦
+			 6. Â¦       2 Â¦ action2       Â¦ 2024-06-11 00:00:00 Â¦
+			 7. Â¦       7 Â¦ action5       Â¦ 2024-06-01 00:00:00 Â¦
+			 8. Â¦       1 Â¦ action9       Â¦ 2024-03-08 00:00:00 Â¦
+			 9. Â¦       8 Â¦ action0       Â¦ 2024-03-18 00:00:00 Â¦
+			10. Â¦       5 Â¦ action1       Â¦ 2024-02-25 00:00:00 Â¦
+			11. Â¦       7 Â¦ action4       Â¦ 2024-01-10 00:00:00 Â¦
+			12. Â¦       5 Â¦ action6       Â¦ 2024-08-21 00:00:00 Â¦
+			13. Â¦       9 Â¦ action5       Â¦ 2024-08-06 00:00:00 Â¦
+			14. Â¦       4 Â¦ action7       Â¦ 2024-07-19 00:00:00 Â¦
+			15. Â¦       6 Â¦ action3       Â¦ 2024-07-10 00:00:00 Â¦
+			16. Â¦       3 Â¦ action5       Â¦ 2024-03-24 00:00:00 Â¦
 				L---------+---------------+----------------------
 use nyc_taxi
 select count () from trips_small
 
-			   --count()-¬
-			1. ¦  999848 ¦
+			   --count()-Â¬
+			1. Â¦  999848 Â¦
 			   L----------
 
 truncate table trips_small;
 
 				
-# Âîññòàíîâèì èç áýêàïà
+# Ð’Ð¾ÑÑÑ‚Ð°Ð½Ð¾Ð²Ð¸Ð¼ Ð¸Ð· Ð±ÑÐºÐ°Ð¿Ð°
 # rm -rf /var/lib/clickhouse/backup/mybackup
 
-# çàãðóçèì áýêàï â ëîêàëüíîå õðàíèëèùå
+# Ð·Ð°Ð³Ñ€ÑƒÐ·Ð¸Ð¼ Ð±ÑÐºÐ°Ð¿ Ð² Ð»Ð¾ÐºÐ°Ð»ÑŒÐ½Ð¾Ðµ Ñ…Ñ€Ð°Ð½Ð¸Ð»Ð¸Ñ‰Ðµ
 clickhouse-backup download mybackup
 			2025-04-28 20:03:47.703 INF pkg/clickhouse/clickhouse.go:131 > clickhouse connection prepared: tcp://localhost:9000 run ping
 			2025-04-28 20:03:47.712 INF pkg/clickhouse/clickhouse.go:134 > clickhouse connection success: tcp://localhost:9000
@@ -186,7 +186,7 @@ clickhouse-backup download mybackup
 			2025-04-28 20:05:27.092 INF pkg/backup/download.go:296 > done backup=mybackup download_size=40.85MiB duration=1.326s object_disk_size=0B operation=download version=2.6.15
 			2025-04-28 20:05:27.092 INF pkg/clickhouse/clickhouse.go:336 > clickhouse connection closed
 
-# Âîññòàíîâëåíèå
+# Ð’Ð¾ÑÑÑ‚Ð°Ð½Ð¾Ð²Ð»ÐµÐ½Ð¸Ðµ
 
 clickhouse-backup download mybackup
 
@@ -302,14 +302,14 @@ clickhouse-backup download mybackup
 			2025-04-28 20:07:08.805 INF pkg/clickhouse/clickhouse.go:336 > clickhouse connection closed
 			2025-04-28 20:07:08.806 FTL cmd/clickhouse-backup/main.go:742 > error="one of restoreDataRegular go-routine return error: can't attach data parts for table 'nyc_taxi.trips_small_replicated': nyc_taxi.trips_small_replicated can't restore cause system.replicas entries already exists and replication in progress from another replica, log_pointer=8, log_max_index=7, absolute_delay=0, queue_size=0"
 			
-# ïðîâåðêà
+# Ð¿Ñ€Ð¾Ð²ÐµÑ€ÐºÐ°
 
 select count () from trips_small
  
 			Query id: 0bbe5869-11ba-43b6-8cb4-a23b33949252
 
-			   --count()-¬
-			1. ¦  999848 ¦
+			   --count()-Â¬
+			1. Â¦  999848 Â¦
 			   L----------
 
 			1 row in set. Elapsed: 0.004 sec.
@@ -319,25 +319,25 @@ select * from part_table_replicated;
 
 			Query id: 1337ad3b-a8fa-417c-a72f-95aaf3738db8
 
-				--user_id-T-activity_type-T-------activity_date-¬
-			 1. ¦       6 ¦ action1       ¦ 2024-09-25 00:00:00 ¦
-			 2. ¦       9 ¦ action4       ¦ 2024-09-22 00:00:00 ¦
-			 3. ¦       2 ¦ action7       ¦ 2024-12-18 00:00:00 ¦
-			 4. ¦       4 ¦ action9       ¦ 2024-07-26 00:00:00 ¦
-			 5. ¦       1 ¦ action0       ¦ 2024-06-07 00:00:00 ¦
-			 6. ¦       2 ¦ action2       ¦ 2024-06-11 00:00:00 ¦
-			 7. ¦       7 ¦ action5       ¦ 2024-06-01 00:00:00 ¦
-			 8. ¦       1 ¦ action9       ¦ 2024-03-08 00:00:00 ¦
-			 9. ¦       8 ¦ action0       ¦ 2024-03-18 00:00:00 ¦
-			10. ¦       5 ¦ action1       ¦ 2024-02-25 00:00:00 ¦
-			11. ¦       7 ¦ action4       ¦ 2024-01-10 00:00:00 ¦
-			12. ¦       5 ¦ action6       ¦ 2024-08-21 00:00:00 ¦
-			13. ¦       9 ¦ action5       ¦ 2024-08-06 00:00:00 ¦
-			14. ¦       4 ¦ action7       ¦ 2024-07-19 00:00:00 ¦
-			15. ¦       6 ¦ action3       ¦ 2024-07-10 00:00:00 ¦
-			16. ¦      10 ¦ action8       ¦ 2024-04-10 00:00:00 ¦
-			17. ¦      10 ¦ action2       ¦ 2024-04-23 00:00:00 ¦
-			18. ¦       3 ¦ action5       ¦ 2024-03-24 00:00:00 ¦
+				--user_id-T-activity_type-T-------activity_date-Â¬
+			 1. Â¦       6 Â¦ action1       Â¦ 2024-09-25 00:00:00 Â¦
+			 2. Â¦       9 Â¦ action4       Â¦ 2024-09-22 00:00:00 Â¦
+			 3. Â¦       2 Â¦ action7       Â¦ 2024-12-18 00:00:00 Â¦
+			 4. Â¦       4 Â¦ action9       Â¦ 2024-07-26 00:00:00 Â¦
+			 5. Â¦       1 Â¦ action0       Â¦ 2024-06-07 00:00:00 Â¦
+			 6. Â¦       2 Â¦ action2       Â¦ 2024-06-11 00:00:00 Â¦
+			 7. Â¦       7 Â¦ action5       Â¦ 2024-06-01 00:00:00 Â¦
+			 8. Â¦       1 Â¦ action9       Â¦ 2024-03-08 00:00:00 Â¦
+			 9. Â¦       8 Â¦ action0       Â¦ 2024-03-18 00:00:00 Â¦
+			10. Â¦       5 Â¦ action1       Â¦ 2024-02-25 00:00:00 Â¦
+			11. Â¦       7 Â¦ action4       Â¦ 2024-01-10 00:00:00 Â¦
+			12. Â¦       5 Â¦ action6       Â¦ 2024-08-21 00:00:00 Â¦
+			13. Â¦       9 Â¦ action5       Â¦ 2024-08-06 00:00:00 Â¦
+			14. Â¦       4 Â¦ action7       Â¦ 2024-07-19 00:00:00 Â¦
+			15. Â¦       6 Â¦ action3       Â¦ 2024-07-10 00:00:00 Â¦
+			16. Â¦      10 Â¦ action8       Â¦ 2024-04-10 00:00:00 Â¦
+			17. Â¦      10 Â¦ action2       Â¦ 2024-04-23 00:00:00 Â¦
+			18. Â¦       3 Â¦ action5       Â¦ 2024-03-24 00:00:00 Â¦
 				L---------+---------------+----------------------
 
 			18 rows in set. Elapsed: 0.011 sec.
