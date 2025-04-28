@@ -1,0 +1,343 @@
+#ÄÇ 13.03.2025
+# storage polycy è backup
+
+# óñòàíîâêà minio
+
+apt update
+cd /tmp
+wget https://dl.min.io/server/minio/release/linux-amd64/minio
+chmod +x minio
+mv minio /usr/local/bin/
+vim /etc/systemd/system/minio.service
+[Unit]
+Description=MinIO
+Documentation=https://docs.min.io
+After=network.target
+
+[Service]
+User=root
+ExecStart=/usr/local/bin/minio server /mnt/data --address=:19000
+Restart=always
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+
+sudo systemctl daemon-reload
+sudo systemctl enable minio
+sudo systemctl start minio
+
+# óñòàíîâêà clickhouse backup
+
+wget https://github.com/Altinity/clickhouse-backup/releases/download/v2.6.15/clickhouse-backup-linux-amd64.tar.gz
+
+sudo install -o root -g root -m 0755 build/linux/amd64/clickhouse-backup /usr/local/bin
+/usr/local/bin/clickhouse-backup -v
+			Version:         2.6.15
+			Git Commit:      6b444bdd47cc6fa05c07b6029ca415293bb5b58d
+			Build Date:      2025-04-12
+
+mkdir /etc/clickhouse-backup
+chown clickhouse: -R /etc/clickhouse-backup
+
+sudo -u clickhouse clickhouse-backup default-config > /etc/clickhouse-backup/config.yml
+vi /etc/clickhouse-backup/config.yml
+general:
+    remote_storage: s3
+
+clickhouse:
+    username: default
+    password: "aaaa"
+
+s3:
+    access_key: "S29nEOu5Murn23fZIzLk"
+    secret_key: "C0BwNnrN6U6ODiftnsrooKsPK5O2906ixwaydUhI"
+
+# ñîçäàíèå ëîêàëüíîãî áýêàïà
+clickhouse-backup create mybackup
+ls -la /var/lib/clickhouse/backup/mybackup/
+
+			drwxr-x--- 2 clickhouse clickhouse 4096 àïð 28 19:17 access
+			drwxr-x--- 4 clickhouse clickhouse 4096 àïð 28 19:17 metadata
+			-rw-r----- 1 clickhouse clickhouse 1096 àïð 28 19:17 metadata.json
+			drwxr-x--- 4 clickhouse clickhouse 4096 àïð 28 19:17 shadow
+
+# Çàãðóçêà â s3
+clickhouse-backup upload mybackup
+
+			2025-04-28 19:37:28.935 INF pkg/clickhouse/clickhouse.go:131 > clickhouse connection prepared: tcp://localhost:9000 run ping
+			2025-04-28 19:37:28.939 INF pkg/clickhouse/clickhouse.go:134 > clickhouse connection success: tcp://localhost:9000
+			2025-04-28 19:37:28.939 INF pkg/clickhouse/clickhouse.go:1123 > SELECT value FROM `system`.`build_options` where name='VERSION_INTEGER'
+			2025-04-28 19:37:28.945 INF pkg/clickhouse/clickhouse.go:1123 > SELECT countIf(name='type') AS is_disk_type_present, countIf(name='object_storage_type') AS is_object_storage_type_present, countIf(name='free_space') AS is_free_space_present, countIf(name='disks') AS is_storage_policy_present FROM system.columns WHERE database='system' AND table IN ('disks','storage_policies')
+			2025-04-28 19:37:28.979 INF pkg/clickhouse/clickhouse.go:1123 > SELECT d.path AS path, any(d.name) AS name, any(lower(if(d.type='ObjectStorage',d.object_storage_type,d.type))) AS type, min(d.free_space) AS free_space, groupUniqArray(s.policy_name) AS storage_policies FROM system.disks AS d  LEFT JOIN (SELECT policy_name, arrayJoin(disks) AS disk FROM system.storage_policies) AS s ON s.disk = d.name GROUP BY d.path
+			2025-04-28 19:37:29.064 INF pkg/clickhouse/clickhouse.go:1123 > SELECT max(toInt64(bytes_on_disk * 1.02)) AS max_file_size FROM system.parts WHERE active SETTINGS empty_result_for_aggregation_by_empty_set=0
+			2025-04-28 19:37:29.075 INF pkg/clickhouse/clickhouse.go:1123 > SELECT count() AS is_macros_exists FROM system.tables WHERE database='system' AND name='macros'  SETTINGS empty_result_for_aggregation_by_empty_set=0
+			2025-04-28 19:37:29.084 INF pkg/clickhouse/clickhouse.go:1123 > SELECT macro, substitution FROM system.macros
+			2025-04-28 19:37:29.088 INF pkg/clickhouse/clickhouse.go:1123 > SELECT count() AS is_macros_exists FROM system.tables WHERE database='system' AND name='macros'  SETTINGS empty_result_for_aggregation_by_empty_set=0
+			2025-04-28 19:37:29.094 INF pkg/clickhouse/clickhouse.go:1123 > SELECT macro, substitution FROM system.macros
+			2025-04-28 19:37:29.116 INF pkg/storage/general.go:163 > list_duration=9.439412
+			2025-04-28 19:37:32.060 INF pkg/backup/upload.go:184 > done data_size=121.00KiB duration=2.917s metadata_size=1.36KiB operation=upload_table progress=1/4 table=db2.part_table_replicated version=2.6.15
+			2025-04-28 19:37:32.077 INF pkg/backup/upload.go:184 > done data_size=0B duration=2.933s metadata_size=1.07KiB operation=upload_table progress=3/4 table=nyc_taxi.trips_small_replicated version=2.6.15
+			2025-04-28 19:37:32.150 INF pkg/backup/upload.go:184 > done data_size=0B duration=90ms metadata_size=832B operation=upload_table progress=4/4 table=nyc_taxi.trips_small_sharded version=2.6.15
+			2025-04-28 19:37:32.695 INF pkg/backup/upload.go:184 > done data_size=40.97MiB duration=3.551s metadata_size=1.23KiB operation=upload_table progress=2/4 table=nyc_taxi.trips_small version=2.6.15
+			2025-04-28 19:37:32.780 INF pkg/backup/upload.go:256 > done backup=mybackup duration=3.845s object_disk_size=0B operation=upload upload_size=41.09MiB version=2.6.15
+			2025-04-28 19:37:32.780 INF pkg/clickhouse/clickhouse.go:336 > clickhouse connection closed
+
+# Ïðîâåðêà ÷òî ôàéëû çàãðóæåíû
+
+ls -la /mnt/data/clickhouse/mybackup/
+
+			drwxr-xr-x 2 root root 4096 àïð 28 19:37 access.tar
+			drwxr-xr-x 4 root root 4096 àïð 28 19:37 metadata
+			drwxr-xr-x 2 root root 4096 àïð 28 19:37 metadata.json
+			drwxr-xr-x 4 root root 4096 àïð 28 19:37 shadow
+
+# 
+clickhouse-client
+use db2
+
+SELECT * FROM part_table_replicated
+
+				--user_id-T-activity_type-T-------activity_date-¬
+			 1. ¦       6 ¦ action1       ¦ 2024-09-25 00:00:00 ¦
+			 2. ¦       9 ¦ action4       ¦ 2024-09-22 00:00:00 ¦
+			 3. ¦       2 ¦ action7       ¦ 2024-12-18 00:00:00 ¦
+			 4. ¦       4 ¦ action9       ¦ 2024-07-26 00:00:00 ¦
+			 5. ¦       1 ¦ action0       ¦ 2024-06-07 00:00:00 ¦
+			 6. ¦       2 ¦ action2       ¦ 2024-06-11 00:00:00 ¦
+			 7. ¦       7 ¦ action5       ¦ 2024-06-01 00:00:00 ¦
+			 8. ¦       1 ¦ action9       ¦ 2024-03-08 00:00:00 ¦
+			 9. ¦       8 ¦ action0       ¦ 2024-03-18 00:00:00 ¦
+			10. ¦       5 ¦ action1       ¦ 2024-02-25 00:00:00 ¦
+			11. ¦       7 ¦ action4       ¦ 2024-01-10 00:00:00 ¦
+			12. ¦       5 ¦ action6       ¦ 2024-08-21 00:00:00 ¦
+			13. ¦       9 ¦ action5       ¦ 2024-08-06 00:00:00 ¦
+			14. ¦       4 ¦ action7       ¦ 2024-07-19 00:00:00 ¦
+			15. ¦       6 ¦ action3       ¦ 2024-07-10 00:00:00 ¦
+			16. ¦      10 ¦ action8       ¦ 2024-04-10 00:00:00 ¦
+			17. ¦      10 ¦ action2       ¦ 2024-04-23 00:00:00 ¦
+			18. ¦       3 ¦ action5       ¦ 2024-03-24 00:00:00 ¦
+				L---------+---------------+----------------------
+
+# Óäàëèì çàïèñè
+delete from part_table_replicated where user_id = 10;
+
+			SELECT * FROM part_table_replicated
+				--user_id-T-activity_type-T-------activity_date-¬
+			 1. ¦       6 ¦ action1       ¦ 2024-09-25 00:00:00 ¦
+			 2. ¦       9 ¦ action4       ¦ 2024-09-22 00:00:00 ¦
+			 3. ¦       2 ¦ action7       ¦ 2024-12-18 00:00:00 ¦
+			 4. ¦       4 ¦ action9       ¦ 2024-07-26 00:00:00 ¦
+			 5. ¦       1 ¦ action0       ¦ 2024-06-07 00:00:00 ¦
+			 6. ¦       2 ¦ action2       ¦ 2024-06-11 00:00:00 ¦
+			 7. ¦       7 ¦ action5       ¦ 2024-06-01 00:00:00 ¦
+			 8. ¦       1 ¦ action9       ¦ 2024-03-08 00:00:00 ¦
+			 9. ¦       8 ¦ action0       ¦ 2024-03-18 00:00:00 ¦
+			10. ¦       5 ¦ action1       ¦ 2024-02-25 00:00:00 ¦
+			11. ¦       7 ¦ action4       ¦ 2024-01-10 00:00:00 ¦
+			12. ¦       5 ¦ action6       ¦ 2024-08-21 00:00:00 ¦
+			13. ¦       9 ¦ action5       ¦ 2024-08-06 00:00:00 ¦
+			14. ¦       4 ¦ action7       ¦ 2024-07-19 00:00:00 ¦
+			15. ¦       6 ¦ action3       ¦ 2024-07-10 00:00:00 ¦
+			16. ¦       3 ¦ action5       ¦ 2024-03-24 00:00:00 ¦
+				L---------+---------------+----------------------
+use nyc_taxi
+select count () from trips_small
+
+			   --count()-¬
+			1. ¦  999848 ¦
+			   L----------
+
+truncate table trips_small;
+
+				
+# Âîññòàíîâèì èç áýêàïà
+# rm -rf /var/lib/clickhouse/backup/mybackup
+
+# çàãðóçèì áýêàï â ëîêàëüíîå õðàíèëèùå
+clickhouse-backup download mybackup
+			2025-04-28 20:03:47.703 INF pkg/clickhouse/clickhouse.go:131 > clickhouse connection prepared: tcp://localhost:9000 run ping
+			2025-04-28 20:03:47.712 INF pkg/clickhouse/clickhouse.go:134 > clickhouse connection success: tcp://localhost:9000
+			2025-04-28 20:03:47.713 INF pkg/clickhouse/clickhouse.go:1123 > SELECT value FROM `system`.`build_options` where name='VERSION_INTEGER'
+			2025-04-28 20:03:47.715 INF pkg/clickhouse/clickhouse.go:1123 > SELECT countIf(name='type') AS is_disk_type_present, countIf(name='object_storage_type') AS is_object_storage_type_present, countIf(name='free_space') AS is_free_space_present, countIf(name='disks') AS is_storage_policy_present FROM system.columns WHERE database='system' AND table IN ('disks','storage_policies')
+			2025-04-28 20:03:47.724 INF pkg/clickhouse/clickhouse.go:1123 > SELECT d.path AS path, any(d.name) AS name, any(lower(if(d.type='ObjectStorage',d.object_storage_type,d.type))) AS type, min(d.free_space) AS free_space, groupUniqArray(s.policy_name) AS storage_policies FROM system.disks AS d  LEFT JOIN (SELECT policy_name, arrayJoin(disks) AS disk FROM system.storage_policies) AS s ON s.disk = d.name GROUP BY d.path
+			2025-04-28 20:03:47.768 INF pkg/clickhouse/clickhouse.go:336 > clickhouse connection closed
+			2025-04-28 20:03:47.768 FTL cmd/clickhouse-backup/main.go:742 > error="backup is already exists"
+			root@scylla1:~# clickhouse-backup download mybackup
+			2025-04-28 20:05:25.660 INF pkg/clickhouse/clickhouse.go:131 > clickhouse connection prepared: tcp://localhost:9000 run ping
+			2025-04-28 20:05:25.662 INF pkg/clickhouse/clickhouse.go:134 > clickhouse connection success: tcp://localhost:9000
+			2025-04-28 20:05:25.662 INF pkg/clickhouse/clickhouse.go:1123 > SELECT value FROM `system`.`build_options` where name='VERSION_INTEGER'
+			2025-04-28 20:05:25.667 INF pkg/clickhouse/clickhouse.go:1123 > SELECT countIf(name='type') AS is_disk_type_present, countIf(name='object_storage_type') AS is_object_storage_type_present, countIf(name='free_space') AS is_free_space_present, countIf(name='disks') AS is_storage_policy_present FROM system.columns WHERE database='system' AND table IN ('disks','storage_policies')
+			2025-04-28 20:05:25.679 INF pkg/clickhouse/clickhouse.go:1123 > SELECT d.path AS path, any(d.name) AS name, any(lower(if(d.type='ObjectStorage',d.object_storage_type,d.type))) AS type, min(d.free_space) AS free_space, groupUniqArray(s.policy_name) AS storage_policies FROM system.disks AS d  LEFT JOIN (SELECT policy_name, arrayJoin(disks) AS disk FROM system.storage_policies) AS s ON s.disk = d.name GROUP BY d.path
+			2025-04-28 20:05:25.766 INF pkg/clickhouse/clickhouse.go:1123 > SELECT max(toInt64(bytes_on_disk * 1.02)) AS max_file_size FROM system.parts WHERE active SETTINGS empty_result_for_aggregation_by_empty_set=0
+			2025-04-28 20:05:25.801 INF pkg/clickhouse/clickhouse.go:1123 > SELECT count() AS is_macros_exists FROM system.tables WHERE database='system' AND name='macros'  SETTINGS empty_result_for_aggregation_by_empty_set=0
+			2025-04-28 20:05:25.808 INF pkg/clickhouse/clickhouse.go:1123 > SELECT macro, substitution FROM system.macros
+			2025-04-28 20:05:25.811 INF pkg/clickhouse/clickhouse.go:1123 > SELECT count() AS is_macros_exists FROM system.tables WHERE database='system' AND name='macros'  SETTINGS empty_result_for_aggregation_by_empty_set=0
+			2025-04-28 20:05:25.816 INF pkg/clickhouse/clickhouse.go:1123 > SELECT macro, substitution FROM system.macros
+			2025-04-28 20:05:25.849 INF pkg/storage/general.go:163 > list_duration=27.270825
+			2025-04-28 20:05:25.912 INF pkg/backup/download.go:505 > done table_metadata=nyc_taxi.trips_small
+			2025-04-28 20:05:25.954 INF pkg/backup/download.go:505 > done table_metadata=nyc_taxi.trips_small_replicated
+			2025-04-28 20:05:25.981 INF pkg/backup/download.go:505 > done table_metadata=nyc_taxi.trips_small_sharded
+			2025-04-28 20:05:25.985 INF pkg/backup/download.go:505 > done table_metadata=db2.part_table_replicated
+			2025-04-28 20:05:25.986 INF pkg/backup/download.go:220 > done backup_name=mybackup duration=0s operation=download_data progress=4/4 size=0B table=nyc_taxi.trips_small_sharded version=2.6.15
+			2025-04-28 20:05:25.986 INF pkg/backup/download.go:220 > done backup_name=mybackup duration=0s operation=download_data progress=3/4 size=0B table=nyc_taxi.trips_small_replicated version=2.6.15
+			2025-04-28 20:05:27.023 INF pkg/backup/download.go:220 > done backup_name=mybackup duration=1.037s operation=download_data progress=2/4 size=40.84MiB table=nyc_taxi.trips_small version=2.6.15
+			2025-04-28 20:05:27.057 INF pkg/backup/download.go:220 > done backup_name=mybackup duration=1.071s operation=download_data progress=1/4 size=9.33KiB table=db2.part_table_replicated version=2.6.15
+			2025-04-28 20:05:27.092 INF pkg/backup/download.go:296 > done backup=mybackup download_size=40.85MiB duration=1.326s object_disk_size=0B operation=download version=2.6.15
+			2025-04-28 20:05:27.092 INF pkg/clickhouse/clickhouse.go:336 > clickhouse connection closed
+
+# Âîññòàíîâëåíèå
+
+clickhouse-backup download mybackup
+
+			2025-04-28 20:03:47.703 INF pkg/clickhouse/clickhouse.go:131 > clickhouse connection prepared: tcp://localhost:9000 run ping
+			2025-04-28 20:03:47.712 INF pkg/clickhouse/clickhouse.go:134 > clickhouse connection success: tcp://localhost:9000
+			2025-04-28 20:03:47.713 INF pkg/clickhouse/clickhouse.go:1123 > SELECT value FROM `system`.`build_options` where name='VERSION_INTEGER'
+			2025-04-28 20:03:47.715 INF pkg/clickhouse/clickhouse.go:1123 > SELECT countIf(name='type') AS is_disk_type_present, countIf(name='object_storage_type') AS is_object_storage_type_present, countIf(name='free_space') AS is_free_space_present, countIf(name='disks') AS is_storage_policy_present FROM system.columns WHERE database='system' AND table IN ('disks','storage_policies')
+			2025-04-28 20:03:47.724 INF pkg/clickhouse/clickhouse.go:1123 > SELECT d.path AS path, any(d.name) AS name, any(lower(if(d.type='ObjectStorage',d.object_storage_type,d.type))) AS type, min(d.free_space) AS free_space, groupUniqArray(s.policy_name) AS storage_policies FROM system.disks AS d  LEFT JOIN (SELECT policy_name, arrayJoin(disks) AS disk FROM system.storage_policies) AS s ON s.disk = d.name GROUP BY d.path
+			2025-04-28 20:03:47.768 INF pkg/clickhouse/clickhouse.go:336 > clickhouse connection closed
+			2025-04-28 20:03:47.768 FTL cmd/clickhouse-backup/main.go:742 > error="backup is already exists"
+			root@scylla1:~# clickhouse-backup download mybackup
+			2025-04-28 20:05:25.660 INF pkg/clickhouse/clickhouse.go:131 > clickhouse connection prepared: tcp://localhost:9000 run ping
+			2025-04-28 20:05:25.662 INF pkg/clickhouse/clickhouse.go:134 > clickhouse connection success: tcp://localhost:9000
+			2025-04-28 20:05:25.662 INF pkg/clickhouse/clickhouse.go:1123 > SELECT value FROM `system`.`build_options` where name='VERSION_INTEGER'
+			2025-04-28 20:05:25.667 INF pkg/clickhouse/clickhouse.go:1123 > SELECT countIf(name='type') AS is_disk_type_present, countIf(name='object_storage_type') AS is_object_storage_type_present, countIf(name='free_space') AS is_free_space_present, countIf(name='disks') AS is_storage_policy_present FROM system.columns WHERE database='system' AND table IN ('disks','storage_policies')
+			2025-04-28 20:05:25.679 INF pkg/clickhouse/clickhouse.go:1123 > SELECT d.path AS path, any(d.name) AS name, any(lower(if(d.type='ObjectStorage',d.object_storage_type,d.type))) AS type, min(d.free_space) AS free_space, groupUniqArray(s.policy_name) AS storage_policies FROM system.disks AS d  LEFT JOIN (SELECT policy_name, arrayJoin(disks) AS disk FROM system.storage_policies) AS s ON s.disk = d.name GROUP BY d.path
+			2025-04-28 20:05:25.766 INF pkg/clickhouse/clickhouse.go:1123 > SELECT max(toInt64(bytes_on_disk * 1.02)) AS max_file_size FROM system.parts WHERE active SETTINGS empty_result_for_aggregation_by_empty_set=0
+			2025-04-28 20:05:25.801 INF pkg/clickhouse/clickhouse.go:1123 > SELECT count() AS is_macros_exists FROM system.tables WHERE database='system' AND name='macros'  SETTINGS empty_result_for_aggregation_by_empty_set=0
+			2025-04-28 20:05:25.808 INF pkg/clickhouse/clickhouse.go:1123 > SELECT macro, substitution FROM system.macros
+			2025-04-28 20:05:25.811 INF pkg/clickhouse/clickhouse.go:1123 > SELECT count() AS is_macros_exists FROM system.tables WHERE database='system' AND name='macros'  SETTINGS empty_result_for_aggregation_by_empty_set=0
+			2025-04-28 20:05:25.816 INF pkg/clickhouse/clickhouse.go:1123 > SELECT macro, substitution FROM system.macros
+			2025-04-28 20:05:25.849 INF pkg/storage/general.go:163 > list_duration=27.270825
+			2025-04-28 20:05:25.912 INF pkg/backup/download.go:505 > done table_metadata=nyc_taxi.trips_small
+			2025-04-28 20:05:25.954 INF pkg/backup/download.go:505 > done table_metadata=nyc_taxi.trips_small_replicated
+			2025-04-28 20:05:25.981 INF pkg/backup/download.go:505 > done table_metadata=nyc_taxi.trips_small_sharded
+			2025-04-28 20:05:25.985 INF pkg/backup/download.go:505 > done table_metadata=db2.part_table_replicated
+			2025-04-28 20:05:25.986 INF pkg/backup/download.go:220 > done backup_name=mybackup duration=0s operation=download_data progress=4/4 size=0B table=nyc_taxi.trips_small_sharded version=2.6.15
+			2025-04-28 20:05:25.986 INF pkg/backup/download.go:220 > done backup_name=mybackup duration=0s operation=download_data progress=3/4 size=0B table=nyc_taxi.trips_small_replicated version=2.6.15
+			2025-04-28 20:05:27.023 INF pkg/backup/download.go:220 > done backup_name=mybackup duration=1.037s operation=download_data progress=2/4 size=40.84MiB table=nyc_taxi.trips_small version=2.6.15
+			2025-04-28 20:05:27.057 INF pkg/backup/download.go:220 > done backup_name=mybackup duration=1.071s operation=download_data progress=1/4 size=9.33KiB table=db2.part_table_replicated version=2.6.15
+			2025-04-28 20:05:27.092 INF pkg/backup/download.go:296 > done backup=mybackup download_size=40.85MiB duration=1.326s object_disk_size=0B operation=download version=2.6.15
+			2025-04-28 20:05:27.092 INF pkg/clickhouse/clickhouse.go:336 > clickhouse connection closed
+			root@scylla1:~# clickhouse-backup restore mybackup
+			2025-04-28 20:07:04.977 INF pkg/clickhouse/clickhouse.go:131 > clickhouse connection prepared: tcp://localhost:9000 run ping
+			2025-04-28 20:07:04.999 INF pkg/clickhouse/clickhouse.go:134 > clickhouse connection success: tcp://localhost:9000
+			2025-04-28 20:07:05.011 INF pkg/clickhouse/clickhouse.go:1123 > SELECT value FROM `system`.`build_options` where name='VERSION_INTEGER'
+			2025-04-28 20:07:05.067 INF pkg/clickhouse/clickhouse.go:1123 > SELECT countIf(name='type') AS is_disk_type_present, countIf(name='object_storage_type') AS is_object_storage_type_present, countIf(name='free_space') AS is_free_space_present, countIf(name='disks') AS is_storage_policy_present FROM system.columns WHERE database='system' AND table IN ('disks','storage_policies')
+			2025-04-28 20:07:05.074 INF pkg/clickhouse/clickhouse.go:1123 > SELECT d.path AS path, any(d.name) AS name, any(lower(if(d.type='ObjectStorage',d.object_storage_type,d.type))) AS type, min(d.free_space) AS free_space, groupUniqArray(s.policy_name) AS storage_policies FROM system.disks AS d  LEFT JOIN (SELECT policy_name, arrayJoin(disks) AS disk FROM system.storage_policies) AS s ON s.disk = d.name GROUP BY d.path
+			2025-04-28 20:07:05.097 INF pkg/clickhouse/clickhouse.go:1121 > CREATE DATABASE IF NOT EXISTS `db1` ENGINE = Atomic with args []interface {}{[]interface {}(nil)}
+			2025-04-28 20:07:05.099 INF pkg/clickhouse/clickhouse.go:1121 > CREATE DATABASE IF NOT EXISTS `db2` ENGINE = Atomic with args []interface {}{[]interface {}(nil)}
+			2025-04-28 20:07:05.101 INF pkg/clickhouse/clickhouse.go:1121 > CREATE DATABASE IF NOT EXISTS `default` ENGINE = Atomic with args []interface {}{[]interface {}(nil)}
+			2025-04-28 20:07:05.102 INF pkg/clickhouse/clickhouse.go:1121 > CREATE DATABASE IF NOT EXISTS `nyc_taxi` ENGINE = Atomic with args []interface {}{[]interface {}(nil)}
+			2025-04-28 20:07:05.105 INF pkg/clickhouse/clickhouse.go:1123 > SELECT engine FROM system.databases WHERE name = 'db2'
+			2025-04-28 20:07:05.107 INF pkg/clickhouse/clickhouse.go:1123 > DROP TABLE IF EXISTS `db2`.`part_table_replicated` NO DELAY
+			2025-04-28 20:07:05.487 INF pkg/clickhouse/clickhouse.go:1123 > SELECT engine FROM system.databases WHERE name = 'nyc_taxi'
+			2025-04-28 20:07:05.489 INF pkg/clickhouse/clickhouse.go:1123 > DROP TABLE IF EXISTS `nyc_taxi`.`trips_small` NO DELAY
+			2025-04-28 20:07:05.868 INF pkg/clickhouse/clickhouse.go:1123 > SELECT engine FROM system.databases WHERE name = 'nyc_taxi'
+			2025-04-28 20:07:05.873 INF pkg/clickhouse/clickhouse.go:1123 > DROP TABLE IF EXISTS `nyc_taxi`.`trips_small_replicated` NO DELAY
+			2025-04-28 20:07:06.014 INF pkg/clickhouse/clickhouse.go:1123 > SELECT engine FROM system.databases WHERE name = 'nyc_taxi'
+			2025-04-28 20:07:06.018 INF pkg/clickhouse/clickhouse.go:1123 > DROP TABLE IF EXISTS `nyc_taxi`.`trips_small_sharded` NO DELAY
+			2025-04-28 20:07:06.020 INF pkg/clickhouse/clickhouse.go:1123 > CREATE DATABASE IF NOT EXISTS `db2`
+			2025-04-28 20:07:06.022 INF pkg/clickhouse/clickhouse.go:1123 > SELECT count() AS is_macros_exists FROM system.tables WHERE database='system' AND name='macros'  SETTINGS empty_result_for_aggregation_by_empty_set=0
+			2025-04-28 20:07:06.025 INF pkg/clickhouse/clickhouse.go:1123 > SELECT macro, substitution FROM system.macros
+			2025-04-28 20:07:06.029 INF pkg/clickhouse/clickhouse.go:1123 > SELECT count() AS is_macros_exists FROM system.tables WHERE database='system' AND name='macros'  SETTINGS empty_result_for_aggregation_by_empty_set=0
+			2025-04-28 20:07:06.033 INF pkg/clickhouse/clickhouse.go:1123 > SELECT macro, substitution FROM system.macros
+			2025-04-28 20:07:06.035 INF pkg/clickhouse/clickhouse.go:1121 > SELECT count() FROM system.zookeeper WHERE path=? with args []interface {}{"/clickhouse/shard_01/db2/part_table_replicated/replicas/01"}
+			2025-04-28 20:07:06.042 INF pkg/clickhouse/clickhouse.go:1123 > CREATE TABLE db2.part_table_replicated UUID '6d04d913-9ff7-4f50-a731-7cbb265f7063' (`user_id` UInt32, `activity_type` LowCardinality(String), `activity_date` DateTime) ENGINE = ReplicatedMergeTree('/clickhouse/shard_{shard}/db2/part_table_replicated', '{replica}') PARTITION BY toYYYYMM(activity_date) PRIMARY KEY user_id ORDER BY user_id SETTINGS index_granularity = 8192
+			2025-04-28 20:07:06.341 INF pkg/clickhouse/clickhouse.go:1123 > CREATE DATABASE IF NOT EXISTS `nyc_taxi`
+			2025-04-28 20:07:06.344 INF pkg/clickhouse/clickhouse.go:1123 > SELECT count() AS is_macros_exists FROM system.tables WHERE database='system' AND name='macros'  SETTINGS empty_result_for_aggregation_by_empty_set=0
+			2025-04-28 20:07:06.352 INF pkg/clickhouse/clickhouse.go:1123 > SELECT macro, substitution FROM system.macros
+			2025-04-28 20:07:06.355 INF pkg/clickhouse/clickhouse.go:1123 > SELECT count() AS is_macros_exists FROM system.tables WHERE database='system' AND name='macros'  SETTINGS empty_result_for_aggregation_by_empty_set=0
+			2025-04-28 20:07:06.359 INF pkg/clickhouse/clickhouse.go:1123 > SELECT macro, substitution FROM system.macros
+			2025-04-28 20:07:06.365 INF pkg/clickhouse/clickhouse.go:1121 > SELECT count() FROM system.zookeeper WHERE path=? with args []interface {}{"/clickhouse/shard_01/nyc_taxi/trips_small/replicas/01"}
+			2025-04-28 20:07:06.380 INF pkg/clickhouse/clickhouse.go:1123 > CREATE TABLE nyc_taxi.trips_small UUID '831a011e-0018-4615-9864-b6d0e292ad77' (`trip_id` UInt32, `pickup_datetime` DateTime, `dropoff_datetime` DateTime, `pickup_longitude` Nullable(Float64), `pickup_latitude` Nullable(Float64), `dropoff_longitude` Nullable(Float64), `dropoff_latitude` Nullable(Float64), `passenger_count` UInt8, `trip_distance` Float32, `fare_amount` Float32, `extra` Float32, `tip_amount` Float32, `tolls_amount` Float32, `total_amount` Float32, `payment_type` Enum8('CSH' = 1, 'CRE' = 2, 'NOC' = 3, 'DIS' = 4, 'UNK' = 5), `pickup_ntaname` LowCardinality(String), `dropoff_ntaname` LowCardinality(String)) ENGINE = ReplicatedMergeTree('/clickhouse/shard_{shard}/nyc_taxi/trips_small', '{replica}') PRIMARY KEY (pickup_datetime, dropoff_datetime) ORDER BY (pickup_datetime, dropoff_datetime) SETTINGS index_granularity = 8192
+			2025-04-28 20:07:06.723 INF pkg/clickhouse/clickhouse.go:1123 > SELECT count() AS is_macros_exists FROM system.tables WHERE database='system' AND name='macros'  SETTINGS empty_result_for_aggregation_by_empty_set=0
+			2025-04-28 20:07:06.741 INF pkg/clickhouse/clickhouse.go:1123 > SELECT macro, substitution FROM system.macros
+			2025-04-28 20:07:06.817 INF pkg/clickhouse/clickhouse.go:1123 > SELECT count() AS is_macros_exists FROM system.tables WHERE database='system' AND name='macros'  SETTINGS empty_result_for_aggregation_by_empty_set=0
+			2025-04-28 20:07:06.859 INF pkg/clickhouse/clickhouse.go:1123 > SELECT macro, substitution FROM system.macros
+			2025-04-28 20:07:06.863 INF pkg/clickhouse/clickhouse.go:1121 > SELECT count() FROM system.zookeeper WHERE path=? with args []interface {}{"/clickhouse/shard_01/nyc_taxi/trips_small_replicated/replicas/01"}
+			2025-04-28 20:07:06.873 INF pkg/clickhouse/clickhouse.go:1123 > CREATE TABLE nyc_taxi.trips_small_replicated UUID '41e37522-bdc7-44f6-b665-3d7fe0255645' (`trip_id` UInt32, `pickup_datetime` DateTime, `dropoff_datetime` DateTime, `pickup_longitude` Nullable(Float64), `pickup_latitude` Nullable(Float64), `dropoff_longitude` Nullable(Float64), `dropoff_latitude` Nullable(Float64), `passenger_count` UInt8, `trip_distance` Float32, `fare_amount` Float32, `extra` Float32, `tip_amount` Float32, `tolls_amount` Float32, `total_amount` Float32, `payment_type` Enum8('CSH' = 1, 'CRE' = 2, 'NOC' = 3, 'DIS' = 4, 'UNK' = 5), `pickup_ntaname` LowCardinality(String), `dropoff_ntaname` LowCardinality(String)) ENGINE = ReplicatedMergeTree('/clickhouse/shard_{shard}/nyc_taxi/trips_small_replicated', '{replica}') PRIMARY KEY (pickup_datetime, dropoff_datetime) ORDER BY (pickup_datetime, dropoff_datetime) TTL pickup_datetime + toIntervalDay(7) RECOMPRESS CODEC(ZSTD(1)), pickup_datetime + toIntervalDay(14) SETTINGS index_granularity = 8192
+			2025-04-28 20:07:07.209 INF pkg/clickhouse/clickhouse.go:1123 > CREATE TABLE nyc_taxi.trips_small_sharded UUID '2f223b72-bd76-4aaa-a9da-0379aedb505e' (`trip_id` UInt32, `pickup_datetime` DateTime, `dropoff_datetime` DateTime, `pickup_longitude` Nullable(Float64), `pickup_latitude` Nullable(Float64), `dropoff_longitude` Nullable(Float64), `dropoff_latitude` Nullable(Float64), `passenger_count` UInt8, `trip_distance` Float32, `fare_amount` Float32, `extra` Float32, `tip_amount` Float32, `tolls_amount` Float32, `total_amount` Float32, `payment_type` Enum8('CSH' = 1, 'CRE' = 2, 'NOC' = 3, 'DIS' = 4, 'UNK' = 5), `pickup_ntaname` LowCardinality(String), `dropoff_ntaname` LowCardinality(String)) ENGINE = Distributed('all_sharded', 'nyc_taxi', 'trips_small', rand())
+			2025-04-28 20:07:07.244 INF pkg/backup/restore.go:941 > done backup=mybackup duration=2.139s operation=restore_schema
+			2025-04-28 20:07:07.245 INF pkg/clickhouse/clickhouse.go:1123 > SELECT count() AS is_macros_exists FROM system.tables WHERE database='system' AND name='macros'  SETTINGS empty_result_for_aggregation_by_empty_set=0
+			2025-04-28 20:07:07.288 INF pkg/clickhouse/clickhouse.go:1123 > SELECT macro, substitution FROM system.macros
+			2025-04-28 20:07:07.291 INF pkg/clickhouse/clickhouse.go:1121 > SELECT name, count(*) as is_present FROM system.settings WHERE name IN (?, ?) GROUP BY name with args []interface {}{"show_table_uuid_in_table_create_query_if_not_nil", "display_secrets_in_show_and_select"}
+			2025-04-28 20:07:07.314 INF pkg/clickhouse/clickhouse.go:1123 > SELECT name FROM system.databases WHERE engine IN ('MySQL','PostgreSQL','MaterializedPostgreSQL')
+			2025-04-28 20:07:07.353 INF pkg/clickhouse/clickhouse.go:1123 >    SELECT     countIf(name='data_path') is_data_path_present,     countIf(name='data_paths') is_data_paths_present,     countIf(name='uuid') is_uuid_present,     countIf(name='create_table_query') is_create_table_query_present,     countIf(name='total_bytes') is_total_bytes_present    FROM system.columns WHERE database='system' AND table='tables'
+			2025-04-28 20:07:07.375 INF pkg/clickhouse/clickhouse.go:1123 > SELECT database, name, engine , data_paths , uuid , create_table_query , coalesce(total_bytes, 0) AS total_bytes   FROM system.tables WHERE is_temporary = 0 AND match(concat(database,'.',name),'^.*$')  ORDER BY total_bytes DESC SETTINGS show_table_uuid_in_table_create_query_if_not_nil=1
+			2025-04-28 20:07:07.431 INF pkg/clickhouse/clickhouse.go:1123 > SELECT data_path AS metadata_path FROM system.databases WHERE name = 'system' LIMIT 1
+			2025-04-28 20:07:07.435 INF pkg/clickhouse/clickhouse.go:1123 > SELECT sum(bytes_on_disk) as size FROM system.parts WHERE active AND database='db2' AND table='part_table_replicated' GROUP BY database, table
+			2025-04-28 20:07:07.440 INF pkg/clickhouse/clickhouse.go:1123 > SELECT sum(bytes_on_disk) as size FROM system.parts WHERE active AND database='nyc_taxi' AND table='trips_small' GROUP BY database, table
+			2025-04-28 20:07:07.487 INF pkg/clickhouse/clickhouse.go:1123 > SELECT sum(bytes_on_disk) as size FROM system.parts WHERE active AND database='nyc_taxi' AND table='trips_small_replicated' GROUP BY database, table
+			2025-04-28 20:07:07.522 INF pkg/backup/restore.go:1496 > download object_disks start table=nyc_taxi.trips_small_sharded
+			2025-04-28 20:07:07.523 INF pkg/backup/restore.go:1503 > download object_disks finish duration=0s size=0B
+			2025-04-28 20:07:07.523 INF pkg/backup/restore.go:1456 > done database=nyc_taxi duration=1ms operation=restoreDataRegular progress=4/4 table=trips_small_sharded
+			2025-04-28 20:07:07.523 INF pkg/backup/restore.go:1496 > download object_disks start table=nyc_taxi.trips_small_replicated
+			2025-04-28 20:07:07.524 INF pkg/backup/restore.go:1503 > download object_disks finish duration=0s size=0B
+			2025-04-28 20:07:07.524 INF pkg/clickhouse/clickhouse.go:1121 > SELECT log_pointer, log_max_index, absolute_delay, queue_size FROM system.replicas WHERE database=? and table=? with args []interface {}{"nyc_taxi", "trips_small_replicated"}
+			2025-04-28 20:07:07.529 INF pkg/backup/restore.go:1496 > download object_disks start table=db2.part_table_replicated
+			2025-04-28 20:07:07.530 INF pkg/backup/restore.go:1503 > download object_disks finish duration=0s size=0B
+			2025-04-28 20:07:07.530 INF pkg/clickhouse/clickhouse.go:1121 > SELECT log_pointer, log_max_index, absolute_delay, queue_size FROM system.replicas WHERE database=? and table=? with args []interface {}{"db2", "part_table_replicated"}
+			2025-04-28 20:07:07.530 INF pkg/backup/restore.go:1496 > download object_disks start table=nyc_taxi.trips_small
+			2025-04-28 20:07:07.530 INF pkg/backup/restore.go:1503 > download object_disks finish duration=0s size=0B
+			2025-04-28 20:07:07.530 INF pkg/clickhouse/clickhouse.go:1121 > SELECT log_pointer, log_max_index, absolute_delay, queue_size FROM system.replicas WHERE database=? and table=? with args []interface {}{"nyc_taxi", "trips_small"}
+			2025-04-28 20:07:07.556 INF pkg/clickhouse/clickhouse.go:1293 > replication_in_progress status = [{LogPointer:0 LogMaxIndex:0 AbsoluteDelay:0 QueueSize:0}]
+			2025-04-28 20:07:07.556 INF pkg/clickhouse/clickhouse.go:1123 > ALTER TABLE `nyc_taxi`.`trips_small` ATTACH PART 'all_4_4_0'
+			2025-04-28 20:07:07.558 INF pkg/clickhouse/clickhouse.go:1293 > replication_in_progress status = [{LogPointer:0 LogMaxIndex:0 AbsoluteDelay:0 QueueSize:0}]
+			2025-04-28 20:07:07.558 INF pkg/clickhouse/clickhouse.go:1123 > ALTER TABLE `db2`.`part_table_replicated` ATTACH PART '202401_0_0_0_5'
+			2025-04-28 20:07:07.674 INF pkg/clickhouse/clickhouse.go:1123 > ALTER TABLE `nyc_taxi`.`trips_small` ATTACH PART 'all_5_5_0'
+			2025-04-28 20:07:07.686 INF pkg/clickhouse/clickhouse.go:1123 > ALTER TABLE `db2`.`part_table_replicated` ATTACH PART '202402_0_0_0_5'
+			2025-04-28 20:07:07.734 INF pkg/clickhouse/clickhouse.go:1123 > ALTER TABLE `nyc_taxi`.`trips_small` ATTACH PART 'all_6_6_0'
+			2025-04-28 20:07:07.866 INF pkg/backup/restore.go:1456 > done database=nyc_taxi duration=344ms operation=restoreDataRegular progress=2/4 table=trips_small
+			2025-04-28 20:07:07.877 INF pkg/clickhouse/clickhouse.go:1123 > ALTER TABLE `db2`.`part_table_replicated` ATTACH PART '202403_0_0_0_6'
+			2025-04-28 20:07:08.065 INF pkg/clickhouse/clickhouse.go:1123 > ALTER TABLE `db2`.`part_table_replicated` ATTACH PART '202403_1_1_0_6'
+			2025-04-28 20:07:08.128 INF pkg/clickhouse/clickhouse.go:1123 > ALTER TABLE `db2`.`part_table_replicated` ATTACH PART '202404_0_1_1_6'
+			2025-04-28 20:07:08.246 INF pkg/clickhouse/clickhouse.go:1123 > ALTER TABLE `db2`.`part_table_replicated` ATTACH PART '202406_0_0_0_5'
+			2025-04-28 20:07:08.347 INF pkg/clickhouse/clickhouse.go:1123 > ALTER TABLE `db2`.`part_table_replicated` ATTACH PART '202407_0_0_0_6'
+			2025-04-28 20:07:08.473 INF pkg/clickhouse/clickhouse.go:1123 > ALTER TABLE `db2`.`part_table_replicated` ATTACH PART '202407_1_1_0_6'
+			2025-04-28 20:07:08.541 INF pkg/clickhouse/clickhouse.go:1123 > ALTER TABLE `db2`.`part_table_replicated` ATTACH PART '202408_0_0_0_5'
+			2025-04-28 20:07:08.651 INF pkg/clickhouse/clickhouse.go:1123 > ALTER TABLE `db2`.`part_table_replicated` ATTACH PART '202409_0_0_0_5'
+			2025-04-28 20:07:08.724 INF pkg/clickhouse/clickhouse.go:1123 > ALTER TABLE `db2`.`part_table_replicated` ATTACH PART '202412_0_0_0_5'
+			2025-04-28 20:07:08.805 INF pkg/backup/restore.go:1456 > done database=db2 duration=1.283s operation=restoreDataRegular progress=1/4 table=part_table_replicated
+			2025-04-28 20:07:08.805 INF pkg/clickhouse/clickhouse.go:336 > clickhouse connection closed
+			2025-04-28 20:07:08.806 FTL cmd/clickhouse-backup/main.go:742 > error="one of restoreDataRegular go-routine return error: can't attach data parts for table 'nyc_taxi.trips_small_replicated': nyc_taxi.trips_small_replicated can't restore cause system.replicas entries already exists and replication in progress from another replica, log_pointer=8, log_max_index=7, absolute_delay=0, queue_size=0"
+			
+# ïðîâåðêà
+
+select count () from trips_small
+ 
+			Query id: 0bbe5869-11ba-43b6-8cb4-a23b33949252
+
+			   --count()-¬
+			1. ¦  999848 ¦
+			   L----------
+
+			1 row in set. Elapsed: 0.004 sec.
+
+use db2;
+select * from part_table_replicated;
+
+			Query id: 1337ad3b-a8fa-417c-a72f-95aaf3738db8
+
+				--user_id-T-activity_type-T-------activity_date-¬
+			 1. ¦       6 ¦ action1       ¦ 2024-09-25 00:00:00 ¦
+			 2. ¦       9 ¦ action4       ¦ 2024-09-22 00:00:00 ¦
+			 3. ¦       2 ¦ action7       ¦ 2024-12-18 00:00:00 ¦
+			 4. ¦       4 ¦ action9       ¦ 2024-07-26 00:00:00 ¦
+			 5. ¦       1 ¦ action0       ¦ 2024-06-07 00:00:00 ¦
+			 6. ¦       2 ¦ action2       ¦ 2024-06-11 00:00:00 ¦
+			 7. ¦       7 ¦ action5       ¦ 2024-06-01 00:00:00 ¦
+			 8. ¦       1 ¦ action9       ¦ 2024-03-08 00:00:00 ¦
+			 9. ¦       8 ¦ action0       ¦ 2024-03-18 00:00:00 ¦
+			10. ¦       5 ¦ action1       ¦ 2024-02-25 00:00:00 ¦
+			11. ¦       7 ¦ action4       ¦ 2024-01-10 00:00:00 ¦
+			12. ¦       5 ¦ action6       ¦ 2024-08-21 00:00:00 ¦
+			13. ¦       9 ¦ action5       ¦ 2024-08-06 00:00:00 ¦
+			14. ¦       4 ¦ action7       ¦ 2024-07-19 00:00:00 ¦
+			15. ¦       6 ¦ action3       ¦ 2024-07-10 00:00:00 ¦
+			16. ¦      10 ¦ action8       ¦ 2024-04-10 00:00:00 ¦
+			17. ¦      10 ¦ action2       ¦ 2024-04-23 00:00:00 ¦
+			18. ¦       3 ¦ action5       ¦ 2024-03-24 00:00:00 ¦
+				L---------+---------------+----------------------
+
+			18 rows in set. Elapsed: 0.011 sec.
