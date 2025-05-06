@@ -1,0 +1,117 @@
+#ДЗ 26.03.2025
+# Профилирование запросов
+
+SHOW CREATE TABLE trips_small
+
+			Query id: 3356ec2f-e175-4e0d-ae0d-b04095579422
+
+			   ┌─statement───────────────────────────────────────────────────────────────────────────────────┐
+			1. │ CREATE TABLE nyc_taxi.trips_small                                                          ↴│
+			   │↳(                                                                                          ↴│
+			   │↳    `trip_id` UInt32,                                                                      ↴│
+			   │↳    `pickup_datetime` DateTime,                                                            ↴│
+			   │↳    `dropoff_datetime` DateTime,                                                           ↴│
+			   │↳    `pickup_longitude` Nullable(Float64),                                                  ↴│
+			   │↳    `pickup_latitude` Nullable(Float64),                                                   ↴│
+			   │↳    `dropoff_longitude` Nullable(Float64),                                                 ↴│
+			   │↳    `dropoff_latitude` Nullable(Float64),                                                  ↴│
+			   │↳    `passenger_count` UInt8,                                                               ↴│
+			   │↳    `trip_distance` Float32,                                                               ↴│
+			   │↳    `fare_amount` Float32,                                                                 ↴│
+			   │↳    `extra` Float32,                                                                       ↴│
+			   │↳    `tip_amount` Float32,                                                                  ↴│
+			   │↳    `tolls_amount` Float32,                                                                ↴│
+			   │↳    `total_amount` Float32,                                                                ↴│
+			   │↳    `payment_type` Enum8('CSH' = 1, 'CRE' = 2, 'NOC' = 3, 'DIS' = 4, 'UNK' = 5),           ↴│
+			   │↳    `pickup_ntaname` LowCardinality(String),                                               ↴│
+			   │↳    `dropoff_ntaname` LowCardinality(String)                                               ↴│
+			   │↳)                                                                                          ↴│
+			   │↳ENGINE = ReplicatedMergeTree('/clickhouse/shard_{shard}/nyc_taxi/trips_small', '{replica}')↴│
+			   │↳PRIMARY KEY (pickup_datetime, dropoff_datetime)                                            ↴│
+			   │↳ORDER BY (pickup_datetime, dropoff_datetime)                                               ↴│
+			   │↳SETTINGS index_granularity = 8192                                                           │
+			   └─────────────────────────────────────────────────────────────────────────────────────────────┘
+
+			1 row in set. Elapsed: 0.001 sec.
+
+
+
+explain indexes = 1 select trip_id, trip_distance, total_amount from trips_small  where pickup_ntaname = 'Airport' order by trip_distance desc limit 10;
+
+			Query id: 8ed85c13-210f-4905-a0aa-35d4c7cd1115
+				┌─explain────────────────────────────────────────────┐
+			 1. │ Expression (Project names)                         │
+			 2. │   Limit (preliminary LIMIT (without OFFSET))       │
+			 3. │     Sorting (Sorting for ORDER BY)                 │
+			 4. │       Expression ((Before ORDER BY + Projection))  │
+			 5. │         Expression                                 │
+			 6. │           ReadFromMergeTree (nyc_taxi.trips_small) │
+			 7. │           Indexes:                                 │
+			 8. │             PrimaryKey                             │
+			 9. │               Condition: true                      │
+			10. │               Parts: 3/3                           │
+			11. │               Granules: 124/124                    │
+				└────────────────────────────────────────────────────┘
+			11 rows in set. Elapsed: 0.003 sec.
+
+# Видно что были прочитаны все парты и все гранулы
+Parts: 3/3       
+Granules: 124/124
+
+
+explain indexes = 1 select trip_id, trip_distance, total_amount from trips_small  where pickup_datetime = '2015-07-01 00:02:28' and dropoff_datetime ='2015-07-01 00:27:12' order= by trip_distance desc limit 10;
+
+			Query id: e677cb66-528a-4af2-b1ad-df5d275caa68
+				┌─explain───────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+			 1. │ Expression (Project names)                                                                                                │
+			 2. │   Sorting (Sorting for ORDER BY)                                                                                          │
+			 3. │     Expression ((Before ORDER BY + Projection))                                                                           │
+			 4. │       Expression                                                                                                          │
+			 5. │         ReadFromMergeTree (nyc_taxi.trips_small)                                                                          │
+			 6. │         Indexes:                                                                                                          │
+			 7. │           PrimaryKey                                                                                                      │
+			 8. │             Keys:                                                                                                         │
+			 9. │               pickup_datetime                                                                                             │
+			10. │               dropoff_datetime                                                                                            │
+			11. │             Condition: and((dropoff_datetime in [1435699632, 1435699632]), (pickup_datetime in [1435698148, 1435698148])) │
+			12. │             Parts: 2/3                                                                                                    │
+			13. │             Granules: 2/124                                                                                               │
+				└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+			13 rows in set. Elapsed: 0.004 sec.
+
+# Видно использование PK и указаны используемые поля индекса
+Keys:             
+  pickup_datetime 
+  dropoff_datetime
+# Условие по которому осуществлялась фильтрация
+Condition: and((dropoff_datetime in [1435699632, 1435699632]), (pickup_datetime in [1435698148, 1435698148]))
+# Видно что время представленно в виде числа
+# Так же видно что прочитаны 2 парта из 3 и 2 гранулы из 124
+Parts: 2/3     
+Granules: 2/124
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
