@@ -7,7 +7,7 @@ sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh
 apt install postgresql-17 postgresql-17-dbgsym postgresql-17 postgresql-client-17
 sudo su postgres
 psql
-create database db1;
+create database demo;
 
 cd /tmp
 wget https://edu.postgrespro.ru/demo-small.zip
