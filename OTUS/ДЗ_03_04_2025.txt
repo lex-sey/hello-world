@@ -99,5 +99,20 @@ select * from kafka_to_real_table;
 
 			5 rows in set. Elapsed: 0.006 sec.
 
+# Настройка kafkaui
+mkdir /kafka/kafkaui
+cd /kafka/kafkaui
+vim ./docker-compose.yml
 
+version: '3.8'
 
+services:
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - KAFKA_CLUSTERS_0_NAME=local
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=localhost:9092
+
+http://192.168.1.91:8080/ui
