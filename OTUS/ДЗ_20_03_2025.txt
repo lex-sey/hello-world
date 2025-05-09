@@ -1,0 +1,33 @@
+#ДЗ 20.03.2025
+# Мониторинг
+# Доступ к исходникам grafana ограничен для России
+# Установка в docker
+
+docker run -d -p 3000:3000 --name=grafana grafana/grafana
+docker exec -it grafana grafana-cli plugins install vertamedia-clickhouse-datasource
+docker restart grafana
+
+http://192.168.1.91:3000
+admin
+admin
+# Добавляем DataSource vertamedia-clickhouse-datasource
+URL: http://192.168.1.91:8123
+User/Password: default/asd123
+
+# Добавляем новый дашборд
+#в качестве источника выбираем наш datasource vertamedia-clickhouse-datasource
+# Выбираем визуализацию 
+# В Sql editor указываем следующий запрос
+# Считаем количество запросов в минуту на интервале 30 минут
+SELECT
+    toStartOfMinute(event_time) AS minute,
+    count() AS selects
+FROM system.query_log
+WHERE
+    event_time >= now() - INTERVAL 30 MINUTE
+    AND type = 'QueryFinish'
+    AND query_kind = 'Select'
+GROUP BY minute
+ORDER BY minute
+
+# Вид дашборда приложен в скриншотах
