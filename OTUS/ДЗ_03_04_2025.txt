@@ -1,0 +1,103 @@
+#ДЗ 03.04.2025
+# Интеграция с kafka
+
+# Установка kafka
+mkdir /kafka
+cd /kafka/
+wget https://dlcdn.apache.org/kafka/4.0.0/kafka_2.13-4.0.0.tgz
+tar -xzf kafka_2.13-4.0.0.tgz
+cd kafka_2.13-4.0.0
+
+bin/kafka-storage.sh format -t 263b5528-f31f-4b58-86c6-b78a7ba4674e -c config/server.properties --standalone
+bin/kafka-server-start.sh -daemon config/server.properties
+jps | grep -i kafka
+			14575 Kafka
+
+# Создание топика
+bin/kafka-topics.sh --create --topic clickhouse_topic --bootstrap-server localhost:9092
+			Created topic clickhouse_topic.
+bin/kafka-topics.sh --describe --topic clickhouse_topic --bootstrap-server localhost:9092
+			Topic: clickhouse_topic TopicId: BgMr5RHISKe1T0E5HcBtMw PartitionCount: 1       ReplicationFactor: 1    Configs: segment.bytes=1073741824
+			Topic: clickhouse_topic Partition: 0    Leader: 1       Replicas: 1     Isr: 1  Elr:    LastKnownElr:
+
+# Запись в топик
+bin/kafka-console-producer.sh --topic clickhouse_topic --bootstrap-server localhost:9092
+This is my first event
+This is my second event
+
+# Чтение записи
+bin/kafka-console-consumer.sh --topic clickhouse_topic --from-beginning --bootstrap-server localhost:9092
+			This is my first event
+			This is my second event
+
+# Создание таблицы в clickhouse
+
+CREATE TABLE kafka_source (
+    name String
+) ENGINE = Kafka
+SETTINGS
+    kafka_broker_list = 'localhost:9092',
+    kafka_topic_list = 'clickhouse_topic',
+    kafka_group_name = 'clickhouse_group',
+    kafka_format = 'TSV',
+    kafka_num_consumers = 1;
+
+			Ok.
+
+			0 rows in set. Elapsed: 4.626 sec.
+
+
+CREATE TABLE real_table (
+    name String
+) ENGINE = MergeTree()
+ORDER BY name;
+
+			Ok.
+
+			0 rows in set. Elapsed: 0.018 sec.
+
+
+CREATE MATERIALIZED VIEW kafka_to_real_table
+TO real_table
+AS
+SELECT
+    name
+FROM kafka_source;
+
+			Query id: 3964d2f0-0a87-476b-85a7-cdc6fa091a3a
+
+			Ok.
+
+			0 rows in set. Elapsed: 0.024 sec.
+
+
+#Проверка записи в clickhouse
+SELECT * FROM real_table;
+			Query id: 62961ab3-b346-4265-9caa-cac9aaa45182
+
+			   ┌─name────────────────┐
+			1. │ This is my 12 event │
+			2. │ This is my 10 event │
+			3. │ This is my 11 event │
+			4. │ This is my 9 event  │
+			5. │ This is my 8 event  │
+			   └─────────────────────┘
+
+			4 rows in set. Elapsed: 0.006 sec.
+
+select * from kafka_to_real_table;
+
+			Query id: 14e88c12-2fdb-44f8-ae63-b1a326312889
+
+			   ┌─name────────────────┐
+			1. │ This is my 12 event │
+			2. │ This is my 10 event │
+			3. │ This is my 11 event │
+			4. │ This is my 9 event  │
+			5. │ This is my 8 event  │
+			   └─────────────────────┘
+
+			5 rows in set. Elapsed: 0.006 sec.
+
+
+
