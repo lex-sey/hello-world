@@ -1,0 +1,169 @@
+#ДЗ 02.04.2025
+# Оркестраторы
+#Разверните инструмент для переливки данных (например, Airflow или Airbyte).
+sudo apt update 
+sudo apt install -y python3-pip python3-dev libpq-dev build-essential 
+sudo apt install python3.10-venv
+python3 -m venv airflow_venv 
+source airflow_venv/bin/activate 
+
+airflow db migrate
+			[2025-05-07T11:42:40.579+0000] {providers_manager.py:946} INFO - The hook_class 'airflow.providers.standard.hooks.filesystem.FSHook' is not fully initialized (UI widgets will be missing), because the 'flask_appbuilder' package is not installed, however it is not required for Airflow components to work
+			[2025-05-07T11:42:40.581+0000] {providers_manager.py:946} INFO - The hook_class 'airflow.providers.standard.hooks.package_index.PackageIndexHook' is not fully initialized (UI widgets will be missing), because the 'flask_appbuilder' package is not installed, however it is not required for Airflow components to work
+			DB: sqlite:////root/airflow/airflow.db
+			Performing upgrade to the metadata database sqlite:////root/airflow/airflow.db
+			[2025-05-07T11:42:40.905+0000] {migration.py:207} INFO - Context impl SQLiteImpl.
+			[2025-05-07T11:42:40.906+0000] {migration.py:210} INFO - Will assume non-transactional DDL.
+			[2025-05-07T11:42:40.908+0000] {migration.py:207} INFO - Context impl SQLiteImpl.
+			[2025-05-07T11:42:40.908+0000] {migration.py:210} INFO - Will assume non-transactional DDL.
+			[2025-05-07T11:42:40.909+0000] {db.py:729} INFO - Creating Airflow database tables from the ORM
+			[2025-05-07T11:42:41.513+0000] {migration.py:207} INFO - Context impl SQLiteImpl.
+			[2025-05-07T11:42:41.513+0000] {migration.py:210} INFO - Will assume non-transactional DDL.
+			[2025-05-07T11:42:41.528+0000] {migration.py:618} INFO - Running stamp_revision  -> 29ce7909c52b
+			[2025-05-07T11:42:41.534+0000] {db.py:740} INFO - Airflow database tables created
+			Database migrating done!
+
+airflow users create \
+--username admin \
+--password admin \
+--firstname Firstname \
+--lastname Lastname \
+--role Admin \
+--email admin@example.com
+
+# В 3 версии airflow поменялась система команд и старые заметки не работают
+# Уставновка в докере
+apt install docker docker-compose-v2
+mkdir /airflow
+cd /airflow
+docker run --rm "debian:bookworm-slim" bash -c 'numfmt --to iec $(echo $(($(getconf _PHYS_PAGES) * $(getconf PAGE_SIZE))))'
+curl -LfO 'https://airflow.apache.org/docs/apache-airflow/3.0.0/docker-compose.yaml'
+mkdir -p ./dags ./logs ./plugins ./config
+echo -e "AIRFLOW_UID=$(id -u)" > .env
+docker compose run airflow-cli airflow config list
+docker compose up airflow-init
+
+			airflow-init-1  | User "airflow" created with role "Admin"
+			airflow-init-1  | 3.0.0
+			airflow-init-1 exited with code 0
+
+# После долгой борьбы aitflow запустился но при авторизации возникает ошибка
+			Error
+			Unauthorized
+
+#Выяснил что в docker-compose нет webservera а работает только api с доступом по токену
+root@scylla1:/airflow# docker compose ps
+			NAME                              IMAGE                  COMMAND                  SERVICE                 CREATED             STATUS                       PORTS
+			airflow-airflow-apiserver-1       apache/airflow:3.0.0   "/usr/bin/dumb-init …"   airflow-apiserver       20 minutes ago      Up 18 minutes (healthy)      0.0.0.0:8080->8080/tcp, :::8080->8080/tcp
+			airflow-airflow-dag-processor-1   apache/airflow:3.0.0   "/usr/bin/dumb-init …"   airflow-dag-processor   20 minutes ago      Up 19 minutes (healthy)      8080/tcp
+			airflow-airflow-scheduler-1       apache/airflow:3.0.0   "/usr/bin/dumb-init …"   airflow-scheduler       20 minutes ago      Up 18 minutes (healthy)      8080/tcp
+			airflow-airflow-triggerer-1       apache/airflow:3.0.0   "/usr/bin/dumb-init …"   airflow-triggerer       20 minutes ago      Up 18 minutes (unhealthy)    8080/tcp
+			airflow-airflow-worker-1          apache/airflow:3.0.0   "/usr/bin/dumb-init …"   airflow-worker          20 minutes ago      Up 14 minutes (healthy)      8080/tcp
+			airflow-postgres-1                postgres:13            "docker-entrypoint.s…"   postgres                About an hour ago   Up About an hour (healthy)   5432/tcp
+			airflow-redis-1                   redis:7.2-bookworm     "docker-entrypoint.s…"   redis                   About an hour ago   Up About an hour (healthy)   6379/tcp
+
+#Пробую развернуть старую версию 2.10.5
+mkdir /airflow_2
+cd /airflow_2
+docker run --rm "debian:bookworm-slim" bash -c 'numfmt --to iec $(echo $(($(getconf _PHYS_PAGES) * $(getconf PAGE_SIZE))))'
+curl -LfO 'https://airflow.apache.org/docs/apache-airflow/2.10.5/docker-compose.yaml'
+mkdir -p ./dags ./logs ./plugins ./config
+echo -e "AIRFLOW_UID=$(id -u)" > .env
+docker compose run airflow-cli airflow config list
+docker compose up airflow-init
+
+			airflow-init-1  | User "airflow" created with role "Admin"
+			airflow-init-1  | 2.10.5
+			airflow-init-1 exited with code 0
+#перезапуск всех контейнеров 
+docker compose up -d
+# удаление pid файла в контейренере вебсервера
+docker compose exec airflow-webserver bash
+rm -f /opt/airflow/airflow-webserver.pid
+docker compose restart airflow-webserver
+
+# Контейнеры постоянно перезапускаются подозрение что не совместимы версии airflow 2.10.5  и airflow-clickhouse-provider=2.3.0
+docker compose exec airflow-webserver pip install airflow-clickhouse-provider
+
+
+#Пробую развернуть старую версию 2.8.3
+mkdir /airflow_3
+cd /airflow_3
+docker run --rm "debian:bookworm-slim" bash -c 'numfmt --to iec $(echo $(($(getconf _PHYS_PAGES) * $(getconf PAGE_SIZE))))'
+curl -LfO 'https://airflow.apache.org/docs/apache-airflow/2.8.3/docker-compose.yaml'
+mkdir -p ./dags ./logs ./plugins ./config
+echo -e "AIRFLOW_UID=$(id -u)" > .env
+echo -e "_PIP_ADDITIONAL_REQUIREMENTS=airflow-clickhouse-provider==2.3.0" > .env
+
+docker compose run airflow-cli airflow config list
+docker compose up airflow-init
+docker compose up -d
+
+# Контейнеры постоянно перезапускаются
+
+# Пробую установить nifi
+sudo apt update
+sudo apt install openjdk-21-jdk
+mkdir /nifi
+cd  /nifi
+wget https://dlcdn.apache.org/nifi/2.4.0/nifi-2.4.0-bin.zip
+unzip nifi-2.4.0-bin.zip
+cd ./nifi-2.4.0/
+./bin/nifi.sh start
+
+export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+export PATH=$JAVA_HOME/bin:$PATH
+
+# Много настроек с безопасностью и включением http
+# Добавление драйвера для подключения к clickhouse
+
+cd /nifi/nifi-2.4.0/lib
+wget https://github.com/ClickHouse/clickhouse-java/releases/download/v0.8.5/clickhouse-jdbc-0.8.5-all.jar
+
+Добавляем контроллер 
+Controller Service Details
+Database Connection URL 
+	jdbc:clickhouse://192.168.1.91:8123/nyc_taxi
+Database Driver Class Name 
+	com.clickhouse.jdbc.ClickHouseDriver
+Database Driver Location(s)
+	/nifi/nifi-2.4.0/lib/clickhouse-jdbc-0.8.5-all.jar
+Database User
+	default
+
+# Добавялем процессор для выполнения запроса
+select count(trip_id) as cc from nyc_taxi.trips_small
+
+# Результат выводим в LogAttribute
+# Схема и результат загрузки на скриншотах по ссылкам
+
+			 {
+			  "cc" : "999848"
+			} ]
+
+
+# Проверка
+SELECT count()
+FROM trips_small
+
+			Query id: 7959f721-0da5-4bb2-89ab-4d3b5d66a35f
+
+			   ┌─count()─┐
+			1. │  999848 │
+			   └─────────┘
+
+			1 row in set. Elapsed: 0.005 sec.
+
+
+
+
+
+
+
+
+
+
+Разверните ClickHouse.
+Выберите любой источник данных (API, сервис, БД и пр.).
+Настройте подключение инструмента к ClickHouse.
+Постройте пайплайн для переливки данных в ClickHouse с возможностью регулярного или одноразового выполнения.
