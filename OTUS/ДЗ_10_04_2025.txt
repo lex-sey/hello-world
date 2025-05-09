@@ -1,0 +1,112 @@
+#ДЗ 10.04.2025
+# Интеграция clickhouse с postgres
+sudo apt install -y postgresql-common
+sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh
+
+#Установка postgres
+apt install postgresql-17 postgresql-17-dbgsym postgresql-17 postgresql-client-17
+sudo su postgres
+psql
+create database db1;
+
+cd /tmp
+wget https://edu.postgrespro.ru/demo-small.zip
+unzip demo-small.zip
+psql -f  demo-small-20170815.sql
+psql
+create user clickhouse_user with superuser password 'asd123';
+
+# Использование табличной функции в clickhouse
+
+SELECT *
+FROM postgresql(
+    '192.168.1.91:5432',
+    'demo',
+    'tickets',
+    'clickhouse_user',
+    'asd123',
+    'bookings'
+)
+LIMIT 10;
+
+			Query id: 5a2e3db7-dbe7-4576-b7b4-629492ec757a
+
+				┌─ticket_no─────┬─book_ref─┬─passenger_id─┬─passenger_name──────┬─contact_data─────────────────────────────────────────────────────────────────────┐
+			 1. │ 0005432000987 │ 06B046   │ 8149 604011  │ VALERIY TIKHONOV    │ {"phone": "+70127117011"}                                                        │
+			 2. │ 0005432000988 │ 06B046   │ 8499 420203  │ EVGENIYA ALEKSEEVA  │ {"phone": "+70378089255"}                                                        │
+			 3. │ 0005432000989 │ E170C3   │ 1011 752484  │ ARTUR GERASIMOV     │ {"phone": "+70760429203"}                                                        │
+			 4. │ 0005432000990 │ E170C3   │ 4849 400049  │ ALINA VOLKOVA       │ {"email": "volkova.alina_03101973@postgrespro.ru", "phone": "+70582584031"}      │
+			 5. │ 0005432000991 │ F313DD   │ 6615 976589  │ MAKSIM ZHUKOV       │ {"email": "m-zhukov061972@postgrespro.ru", "phone": "+70149562185"}              │
+			 6. │ 0005432000992 │ F313DD   │ 2021 652719  │ NIKOLAY EGOROV      │ {"phone": "+70791452932"}                                                        │
+			 7. │ 0005432000993 │ F313DD   │ 0817 363231  │ TATYANA KUZNECOVA   │ {"email": "kuznecova-t-011961@postgrespro.ru", "phone": "+70400736223"}          │
+			 8. │ 0005432000994 │ CCC5CB   │ 2883 989356  │ IRINA ANTONOVA      │ {"email": "antonova.irina04121972@postgrespro.ru", "phone": "+70844502960"}      │
+			 9. │ 0005432000995 │ CCC5CB   │ 3097 995546  │ VALENTINA KUZNECOVA │ {"email": "kuznecova.valentina10101976@postgrespro.ru", "phone": "+70268080457"} │
+			10. │ 0005432000996 │ 1FB1E4   │ 6866 920231  │ POLINA ZHURAVLEVA   │ {"phone": "+70639918455"}                                                        │
+				└───────────────┴──────────┴──────────────┴─────────────────────┴──────────────────────────────────────────────────────────────────────────────────┘
+
+			10 rows in set. Elapsed: 0.031 sec.
+
+# Создание таблицы с движком postgres
+
+CREATE TABLE nyc_taxi.tickets_pg
+ENGINE = PostgreSQL(
+    '192.168.1.91:5432',
+    'demo',
+    'tickets',
+    'clickhouse_user',
+    'asd123',
+    'bookings'
+);
+			Query id: 3205120f-cb3f-4b46-a723-a67bc8d3cec7
+
+			Ok.
+
+			0 rows in set. Elapsed: 0.038 sec.
+
+select count(*) from nyc_taxi.tickets_pg;
+			Query id: e7a54790-651e-4f8e-9aaf-c501bcace2b9
+
+			   ┌─count()─┐
+			1. │  366733 │
+			   └─────────┘
+
+			1 row in set. Elapsed: 0.119 sec. Processed 366.73 thousand rows, 8.07 MB (3.07 million rows/s., 67.53 MB/s.)
+			Peak memory usage: 53.61 KiB.
+
+
+# Использование движка БД для доступа к БД postgres
+psql -d demo
+create table public.tickets as select * from bookings.tickets;
+
+CREATE DATABASE demo_pg
+ ENGINE = PostgreSQL(
+    '192.168.1.91:5432',
+    'demo',
+    'clickhouse_user',
+    'asd123'
+);
+
+SHOW TABLES FROM demo_pg;
+
+			Query id: 88609a32-f265-4c6d-bde7-2cf3e8522ce7
+
+			   ┌─name────┐
+			1. │ tickets │
+			   └─────────┘
+
+			1 row in set. Elapsed: 0.011 sec.
+
+select count(*) from demo_pg.tickets;
+			Query id: 5b51f8ba-6fcd-4ece-9470-8b0bd2a5b237
+
+			   ┌─count()─┐
+			1. │  366733 │
+			   └─────────┘
+
+			1 row in set. Elapsed: 0.137 sec. Processed 366.73 thousand rows, 8.43 MB (2.68 million rows/s., 61.75 MB/s.)
+			Peak memory usage: 52.97 KiB.
+# Не получилось обратиться к таблицам в другой схеме
+# Так же увидеть список таблиц в других схемах
+
+select count(*) from demo_pg.bookings__tickets;
+Code: 60. DB::Exception: Received from localhost:9000. DB::Exception: Unknown table expression identifier 'demo_pg.bookings__tickets' in scope SELECT count(*) FROM demo_pg.bookings__tickets. (UNKNOWN_TABLE)
