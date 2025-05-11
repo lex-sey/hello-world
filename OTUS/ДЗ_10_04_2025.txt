@@ -86,6 +86,8 @@ CREATE DATABASE demo_pg
     'asd123'
 );
 
+
+
 SHOW TABLES FROM demo_pg;
 
 			Query id: 88609a32-f265-4c6d-bde7-2cf3e8522ce7
@@ -110,3 +112,27 @@ select count(*) from demo_pg.tickets;
 
 select count(*) from demo_pg.bookings__tickets;
 Code: 60. DB::Exception: Received from localhost:9000. DB::Exception: Unknown table expression identifier 'demo_pg.bookings__tickets' in scope SELECT count(*) FROM demo_pg.bookings__tickets. (UNKNOWN_TABLE)
+
+# Создание базы с другой схемой
+
+CREATE DATABASE demo_pg2
+ ENGINE = PostgreSQL(
+    '192.168.1.91:5432',
+    'demo',
+    'clickhouse_user',
+    'asd123',
+    'bookings'
+);
+use demo_pg2
+SELECT count(*)
+FROM tickets
+
+			Query id: 3ef73bd1-0366-4da2-afb3-67ddb30e5f45
+
+			   ┌─count()─┐
+			1. │  366733 │
+			   └─────────┘
+
+			1 row in set. Elapsed: 2.540 sec. Processed 366.73 thousand rows, 8.07 MB (144.41 thousand rows/s., 3.18 MB/s.)
+			Peak memory usage: 53.08 KiB.
+
