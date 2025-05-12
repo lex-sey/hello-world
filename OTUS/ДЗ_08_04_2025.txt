@@ -1,0 +1,89 @@
+#ДЗ 08.04.2025
+# Интеграция с BI
+
+# Установка Superset
+sudo apt update
+sudo apt upgrade -y
+sudo apt install -y build-essential python3-pip python3-venv libssl-dev libffi-dev python3-dev git
+
+# Из пакетов не работает
+# ставлю из докера
+openssl rand -base64 42
+dq8cu5rpaPZsKRu1fUyEBIhOb0CfIFEuZhyMp768wPxN0QfeqMFTzxAV
+
+sudo docker pull apache/superset
+sudo docker run -d -p 8080:8088 -e "SUPERSET_SECRET_KEY=dq8cu5rpaPZsKRu1fUyEBIhOb0CfIFEuZhyMp768wPxN0QfeqMFTzxAV" --name superset apache/superset
+sudo docker exec -it superset superset fab create-admin \
+          --username admin \
+          --firstname Superset \
+          --lastname Admin \
+          --email admin@superset.com \
+          --password admin
+
+sudo docker exec -it superset superset db upgrade
+# load_examples заработал со второго раза
+sudo docker exec -it superset superset load_examples
+			2025-05-12 06:57:29,719:INFO:superset.models.helpers:Importing new dashboards Dashboard<unicode-test>
+			2025-05-12 06:57:29,724:INFO:superset.models.helpers:Importing new dashboards Dashboard<None>
+			2025-05-12 06:57:29,728:INFO:superset.models.helpers:Importing new dashboards Dashboard<None>
+			2025-05-12 06:57:29,732:INFO:superset.models.helpers:Importing new dashboards Dashboard<None>
+			2025-05-12 06:57:29,735:INFO:superset.models.helpers:Importing new dashboards Dashboard<None>
+			2025-05-12 06:57:29,739:INFO:superset.models.helpers:Importing new dashboards Dashboard<None>
+			2025-05-12 06:57:29,742:INFO:superset.models.helpers:Importing new dashboards Dashboard<None>
+			
+sudo docker exec -it superset superset init
+
+
+			2025-05-12 07:00:57,827:INFO:superset.utils.screenshots:No PIL installation found
+			2025-05-12 07:00:58,238:INFO:superset.utils.pdf:No PIL installation found
+			2025-05-12 07:01:02,908:INFO:superset.security.manager:Syncing role definition
+			2025-05-12 07:01:03,094:INFO:superset.security.manager:Syncing Admin perms
+			2025-05-12 07:01:03,097:INFO:superset.security.manager:Syncing Alpha perms
+			2025-05-12 07:01:03,221:INFO:superset.security.manager:Syncing Gamma perms
+			2025-05-12 07:01:03,357:INFO:superset.security.manager:Syncing sql_lab perms
+			2025-05-12 07:01:03,485:INFO:superset.security.manager:Fetching a set of all perms to lookup which ones are missing
+			2025-05-12 07:01:03,493:INFO:superset.security.manager:Creating missing datasource permissions.
+			2025-05-12 07:01:03,502:INFO:superset.security.manager:Creating missing database permissions.
+			2025-05-12 07:01:03,504:INFO:superset.security.manager:Cleaning faulty perms
+
+
+# Интеграция с clickhouse
+
+sudo docker ps
+			35ca3459f218   apache/superset   "/usr/bin/run-server…"   15 minutes ago   Up 15 minutes (healthy)   0.0.0.0:8080->8088/tcp, :::8080->8088/tcp   superset
+sudo docker exec -it --user root 35ca3459f218 /bin/bash
+
+apt update
+apt install -y gcc g++ python3-dev libffi-dev libssl-dev
+
+sudo docker exec -it 35ca3459f218 /bin/bash
+pip install clickhouse-sqlalchemy
+
+				  error: command 'gcc' failed: No such file or directory
+				  [end of output]
+
+			  note: This error originates from a subprocess, and is likely not a problem with pip.
+			  ERROR: Failed building wheel for zstd
+
+pip install clickhouse-connect
+
+			Using cached lz4-4.4.4-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (1.3 MB)
+			Installing collected packages: lz4, clickhouse-connect
+			Successfully installed clickhouse-connect-0.8.17 lz4-4.4.4
+
+# Проверка
+curl http://192.168.1.94:8080/
+			<!doctype html>
+			<html lang=en>
+			<title>Redirecting...</title>
+			<h1>Redirecting...</h1>
+			<p>You should be redirected automatically to the target URL: <a href="/superset/welcome/">/superset/welcome/</a>. If not, click the link.
+#Superset работает по адресу http://192.168.1.94:8080/superset
+
+#Созданы 6 дашбордов
+Выручка по дням
+Количества поездок по дням
+Зависимости суммы чаевых от районов посадки и высадки
+Суммарная выручка по числу пассажиров
+Визуализация наиболее популярных точек начала поездок по городу
+# Не получилось наложить карту на координаты точек. Видны только точки
