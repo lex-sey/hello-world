@@ -30,7 +30,7 @@ sudo docker exec -it superset superset load_examples
 			2025-05-12 06:57:29,735:INFO:superset.models.helpers:Importing new dashboards Dashboard<None>
 			2025-05-12 06:57:29,739:INFO:superset.models.helpers:Importing new dashboards Dashboard<None>
 			2025-05-12 06:57:29,742:INFO:superset.models.helpers:Importing new dashboards Dashboard<None>
-			
+
 sudo docker exec -it superset superset init
 
 
