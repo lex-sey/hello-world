@@ -1,0 +1,246 @@
+# Проект Обработка логов в clickhouse
+# Общая схема сбора и обработки логов
+
+[Сервер/Приложение] 
+         ¦
+         V
+ [Filebeat/Fluentd]
+         ¦
+         V
+     [Kafka]
+         ¦
+         V
+   [Logstash/ETL]
+         ¦
+         V
+   [ClickHouse]
+
+Источники логов — ваши приложения, сервисы, веб-серверы и т.д., генерирующие логи.
+Агент сбора логов — небольшая утилита на сервере (например, Filebeat, Fluent Bit, Fluentd), которая читает лог-файлы и пересылает записи в очередь.
+Очередь сообщений — буфер для временного хранения логов и их передачи (чаще всего Kafka, но может быть и RabbitMQ).
+ETL/обработчик данных — компонент для парсинга, фильтрации, преобразования логов (Logstash, NiFi, собственные скрипты).
+ClickHouse — финальное хранилище для хранения и анализа логов.
+
+1. Генерация логов.
+# Для генерации логов будем использовать bash скрипт запускаемый по крону
+
+#!/bin/bash
+
+LOG_FILE="logs.txt"
+LINES=100 # Количество строк, можно изменить
+
+types=("ERROR" "WARNIN" "INFO")
+
+> "$LOG_FILE" # Очищаем содержимое файла
+
+for ((i=0; i<LINES; i++)); do
+    type=${types[$RANDOM % ${#types[@]}]}
+    number=$(( RANDOM % 9000 + 1000 ))
+
+    # Случайное смещение в днях, часах, минутах, секундах (0..364 дня)
+    days_ago=$(( RANDOM % 365 ))
+    hours=$(( RANDOM % 24 ))
+    mins=$(( RANDOM % 60 ))
+    secs=$(( RANDOM % 60 ))
+
+    # Вычисляем случайную дату
+    datetime=$(date --date="$days_ago days ago $hours hours $mins min $secs sec" "+%Y-%m-%d %H:%M:%S")
+
+    echo "$datetime $type-$number" >> "$LOG_FILE"
+done
+
+echo "Логи сгенерированы в $LOG_FILE"
+
+2. Собираем логи через filebit
+#Установка filebit
+
+
+curl -L -O https://artifacts.elastic.co/downloads/beats/filebeat/filebeat-8.13.0-amd64.deb
+sudo dpkg -i filebeat-8.13.0-amd64.deb
+
+# Проверка 
+filebeat test config
+# Запускаем в консоли и смотрим вывод в консоль когда логи пишутся в файл
+filebeat -e -c /etc/filebeat/filebeat.yml
+
+# Запускаем службу
+systemctl start filebeat
+
+3. Установка kafka
+mkdir /kafka
+cd /kafka
+wget https://dlcdn.apache.org/kafka/4.0.0/kafka_2.13-4.0.0.tgz
+tar -xzf kafka_2.13-4.0.0.tgz
+cd kafka_2.13-4.0.0
+sudo apt install openjdk-21-jdk
+sudo update-alternatives --config java
+
+bin/kafka-storage.sh format -t 263b5528-f31f-4b58-86c6-b78a7ba4674e -c config/server.properties --standalone
+bin/kafka-server-start.sh -daemon config/server.properties
+jps | grep -i kafka
+bin/kafka-topics.sh --create --topic logs_to_clickhouse_topic --bootstrap-server localhost:9092
+bin/kafka-topics.sh --describe --topic logs_to_clickhouse_topic --bootstrap-server localhost:9092
+			Topic: logs_to_clickhouse_topic TopicId: zZ9Q3Cz2RXSmlZq-Om-pwQ PartitionCount: 1       ReplicationFactor: 1    Configs: segment.bytes=1073741824
+			Topic: logs_to_clickhouse_topic Partition: 0    Leader: 1       Replicas: 1     Isr: 1  Elr:    LastKnownElr:
+
+Для генерации сообщения запускаем produser
+bin/kafka-console-producer.sh --topic logs_to_clickhouse_topic --bootstrap-server localhost:9092
+
+Для проверки работы смотрим что попадает в топик
+bin/kafka-console-consumer.sh --topic logs_to_clickhouse_topic --from-beginning --bootstrap-server localhost:9092
+
+
+4. При высокой нагрузке скорее всего надо ставить какой то буфер который будет затем сбрасываться в базу например logstash если нужна предобработка или redis в качестве кэша.
+
+5. Установка clickhouse
+
+mkdir /clickhouse
+cd /clickhouse/
+sudo apt-get install -y apt-transport-https ca-certificates curl gnupg
+curl -fsSL 'https://packages.clickhouse.com/rpm/lts/repodata/repomd.xml.key' | sudo gpg --dearmor -o /usr/share/keyrings/clickhouse-keyring.gpg
+ARCH=$(dpkg --print-architecture)
+echo "deb [signed-by=/usr/share/keyrings/clickhouse-keyring.gpg arch=${ARCH}] https://packages.clickhouse.com/deb stable main" | sudo tee /etc/apt/sources.list.d/clickhouse.list
+sudo apt update
+sudo apt install clickhouse-server=24.12.6.70 clickhouse-client=24.12.6.70 clickhouse-common-static=24.12.6.70
+
+6. Создание базы и таблиц в clickhouse
+CREATE DATABASE analyze_logs;
+
+--DROP TABLE analyze_logs.kafka_source_logs
+CREATE TABLE analyze_logs.kafka_source_logs (
+    log_string String
+) ENGINE = Kafka
+SETTINGS
+    kafka_broker_list = 'localhost:9092',
+    kafka_topic_list = 'logs_to_clickhouse_topic',
+    kafka_group_name = 'clickhouse_group',
+    kafka_format = 'TSV',
+    kafka_num_consumers = 1;
+
+--select * from analyze_logs.kafka_source_logs
+
+
+--DROP TABLE analyze_logs.small_logs
+CREATE TABLE analyze_logs.small_logs (
+    log_string          LowCardinality(String)
+)
+ENGINE = MergeTree
+PRIMARY KEY (log_string);
+
+--select * from analyze_logs.small_logs
+
+				--log_string--------------------------------------------------------------------------------¬
+			 1. ¦ 2024-10-22 20:38:28 WARNING-5467 wjEJLsAmpBbxKOsLkIIhchaErFnJueVlkDtxgRCYqfFCCXXroztsmdA  ¦
+			 2. ¦ 2024-12-31 04:58:11 ERROR-9190 JylSYpIITAFfHfgPtHDYIhIZcxkmlVzOrFGZfdUIprOwWtTqufyxbbS    ¦
+			 3. ¦ error-1                                                                                   ¦
+			 4. ¦ error-1                                                                            
+
+
+--DROP  VIEW analyze_logs.kafka_to_small_logs
+CREATE MATERIALIZED VIEW analyze_logs.kafka_to_small_logs
+TO small_logs
+AS
+SELECT
+    log_string
+FROM kafka_source_logs;
+
+--select * FROM analyze_logs.kafka_to_small_logs
+
+issue1:  StorageKafka (kafka_source_logs): Error during draining: Local: Required feature not supported by broker
+Fix1: sudo apt-get update; sudo apt-get install --only-upgrade clickhouse-server clickhouse-client clickhouse-common-static
+# Обновил до  ClickHouse server version 25.4.3
+
+7. Создание нормальной структуры для логов
+
+CREATE TABLE analyze_logs.parsed_logs
+(
+    created_date Date,
+    created_time String,
+    type_message LowCardinality(String),
+    message_code UInt32,
+    message_text String
+)
+ENGINE = MergeTree
+ORDER BY (created_date, created_time);
+
+CREATE MATERIALIZED VIEW analyze_logs.kafka_to_parsed_logs
+TO analyze_logs.parsed_logs
+AS
+SELECT
+    toDate(splitByChar(' ', log_string)[1]) AS created_date,
+    splitByChar(' ', log_string)[2] AS created_time,
+    splitByChar('-', splitByChar(' ', log_string)[3])[1] AS type_message,
+    toUInt32(splitByChar('-', splitByChar(' ', log_string)[3])[2]) AS message_code,
+    splitByChar(' ', log_string)[4] AS message_text
+FROM analyze_logs.kafka_source_logs
+WHERE length(log_string) > 0;
+
+
+8. Установка и настройка apachesuperset
+
+sudo docker pull apache/superset
+sudo docker run -d -p 8080:8088 -e "SUPERSET_SECRET_KEY=dq8cu5rpaPZsKRu1fUyEBIhOb0CfIFEuZhyMp768wPxN0QfeqMFTzxAV" --name superset apache/superset
+sudo docker exec -it superset superset fab create-admin \
+          --username admin \
+          --firstname Superset \
+          --lastname Admin \
+          --email admin@superset.com \
+          --password admin
+
+sudo docker exec -it superset superset db upgrade
+
+#issue2: pip install clickhouse-sqlalchemy clickhouse-sqlalchemy error: command 'gcc' failed: No such file or directory
+#Fix2: pip install clickhouse-connect
+
+sudo docker exec -it 35ca3459f218 /bin/bash
+pip install clickhouse-connect
+
+			Using cached lz4-4.4.4-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (1.3 MB)
+			Installing collected packages: lz4, clickhouse-connect
+			Successfully installed clickhouse-connect-0.8.17 lz4-4.4.4
+			
+# Проверка
+curl http://192.168.1.94:8080/
+			<!doctype html>
+			<html lang=en>
+			<title>Redirecting...</title>
+			<h1>Redirecting...</h1>
+			<p>You should be redirected automatically to the target URL: <a href="/superset/welcome/">/superset/welcome/</a>. If not, click the link.
+#Superset работает по адресу http://192.168.1.94:8080/superset
+
+#Созданные дашборды на скриншотах
+
+
+# Добавление реплик и разделение на шарды
+
+vim /etc/clickhouse-server/config.d/remote_servers.xml
+<clickhouse>
+   <remote_servers>
+   <log_sharded_replicated_clustera>
+      <shard>
+      <internal_replication>true</internal_replication>
+      <replica><host>192.168.1.91</host><port>9000</port></replica>
+      <replica><host>192.168.1.92</host><port>9000</port></replica>
+      </shard>
+      <shard>
+      <internal_replication>true</internal_replication>
+      <replica><host>192.168.1.93</host><port>9000</port></replica>
+      <replica><host>192.168.1.94</host><port>9000</port></replica>
+      </shard>
+   </log_sharded_replicated_cluster>
+   </remote_servers>
+</clickhouse>
+
+
+
+vim /etc/clickhouse-server/config.d/macros.xml
+
+<clickhouse>
+    <macros>
+        <log_sharded_replicated_cluster_shard>0[1-3]</log_sharded_replicated_cluster_shard>
+        <log_sharded_replicated_cluster_replica>rep[1-3]</log_sharded_replicated_cluster_replica>
+    </macros>
+</clickhouse>
+
+
+
