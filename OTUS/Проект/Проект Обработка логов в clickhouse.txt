@@ -10,16 +10,13 @@
      [Kafka]
          ¦
          V
-   [Logstash/ETL]
-         ¦
-         V
    [ClickHouse]
 
 Источники логов — ваши приложения, сервисы, веб-серверы и т.д., генерирующие логи.
 Агент сбора логов — небольшая утилита на сервере (например, Filebeat, Fluent Bit, Fluentd), которая читает лог-файлы и пересылает записи в очередь.
 Очередь сообщений — буфер для временного хранения логов и их передачи (чаще всего Kafka, но может быть и RabbitMQ).
-ETL/обработчик данных — компонент для парсинга, фильтрации, преобразования логов (Logstash, NiFi, собственные скрипты).
 ClickHouse — финальное хранилище для хранения и анализа логов.
+При большой нагрузке перед Clickhouse скорее всего придётся ставить какой то парсер-обработчик данных/буфер — компонент для парсинга, фильтрации, преобразования логов, (Logstash, NiFi, собственные скрипты,Reddis)
 
 1. Генерация логов.
 # Для генерации логов будем использовать bash скрипт запускаемый по крону
@@ -51,12 +48,35 @@ done
 
 echo "Логи сгенерированы в $LOG_FILE"
 
+Добавляем генерацию логов в cron каждую минуту
+
+* * * * * root /analyze_logs/generate_logs.sh
+
 2. Собираем логи через filebit
 #Установка filebit
 
 
 curl -L -O https://artifacts.elastic.co/downloads/beats/filebeat/filebeat-8.13.0-amd64.deb
 sudo dpkg -i filebeat-8.13.0-amd64.deb
+
+vim /etc/filebeat/filebeat.yml
+filebeat.inputs:
+- type: log
+  id: logs_from_file
+  enabled: true
+  paths:
+    - /analyze_logs/logs.txt
+  scan_frequency: 5s
+  tail_files: true
+output.kafka:
+  enabled: true
+  hosts: ["192.168.1.91:9092"]   # Адреса брокеров Kafka
+  topic: "logs_to_clickhouse_topic"               # Имя Kafka-топика
+  codec.format:
+    string: '%{[message]}'
+
+
+
 
 # Проверка 
 filebeat test config
@@ -119,6 +139,9 @@ SETTINGS
 
 --select * from analyze_logs.kafka_source_logs
 
+
+# Запись всего сообщения одной строкой
+# просто но не оптимально для поиска и хранения
 
 --DROP TABLE analyze_logs.small_logs
 CREATE TABLE analyze_logs.small_logs (
@@ -210,7 +233,6 @@ curl http://192.168.1.94:8080/
 
 #Созданные дашборды на скриншотах
 
-
 # Добавление реплик и разделение на шарды
 
 vim /etc/clickhouse-server/config.d/remote_servers.xml
@@ -243,4 +265,189 @@ vim /etc/clickhouse-server/config.d/macros.xml
 </clickhouse>
 
 
+9. Настройка chkeeper 
+# На разных нодах указываем уникальные идентификаторы <id>[2-4]</id>
 
+vim /etc/clickhouse-keeper/keeper_config.xml
+                <listen_host>0.0.0.0</listen_host>
+			    <keeper_server>
+                        <tcp_port>9181</tcp_port>
+			            <server_id>1</server_id>
+                        <raft_configuration>
+                            <server>
+                                <id>4</id>
+                                <!-- Internal port and hostname -->
+                                <hostname>192.168.1.94</hostname>
+                                <port>9234</port>
+                            </server>
+                            <server>
+                                <id>2</id>
+                                <!-- Internal port and hostname -->
+                                <hostname>192.168.1.92</hostname>
+                                <port>9234</port>
+                            </server>
+                            <server>
+                                <id>3</id>
+                                <!-- Internal port and hostname -->
+                                <hostname>192.168.1.93</hostname>
+                                <port>9234</port>
+                            </server>
+                            <!-- Add more servers here -->
+                        </raft_configuration>
+
+systemctl enable clickhouse-keeper.service
+systemctl start clickhouse-keeper.service
+systemctl status clickhouse-keeper.service
+
+vim /etc/clickhouse-server/config.d/chkeeper.xml
+
+<clickhouse>
+    <zookeeper>
+        <node>
+            <host>192.168.1.94</host>
+            <port>9181</port>
+        </node>
+        <node>
+            <host>192.168.1.92</host>
+            <port>9181</port>
+        </node>
+        <node>
+            <host>192.168.1.93</host>
+            <port>9181</port>
+        </node>
+        <node>
+            <host>localhost</host>
+            <port>9181</port>
+        </node>
+    </zookeeper>
+</clickhouse>
+
+10. Создание реплицированных и шардированных таблиц
+issue3: не работает репликация не смотря на то что указаны IP хостов
+Fix3: в /etc/hosts явно указать ip адреса для хостов участвующих в репликации
+
+# Создадим базу на распределённом кластере
+
+CREATE DATABASE analyze_logs_cl on cluster log_sharded_replicated_cluster;
+
+# Создадим реплицированную и шардированную таблицу
+
+CREATE TABLE analyze_logs_cl.parsed_logs_sh on cluster log_sharded_replicated_cluster
+(
+    created_date Date,
+    created_time String,
+    type_message LowCardinality(String),
+    message_code UInt32,
+    message_text String
+)
+ENGINE = ReplicatedMergeTree('/clickhouse/shard_{log_sharded_replicated_cluster_shard}/{database}/{table}','{log_sharded_replicated_cluster_replica}')  
+ORDER BY (created_date, created_time);
+
+# Создадим Distributed таблицу на каждой ноде кластера
+
+CREATE TABLE analyze_logs_cl.parsed_logs_sh_distr as analyze_logs_cl.parsed_logs_sh
+ENGINE = Distributed(log_sharded_replicated_cluster, analyze_logs_cl, parsed_logs_sh, rand());
+
+# Перельём данные логов в шардированную таблицу
+# Сначала создадим вьюху что бы новые сообщения собирались так же в шардированную таблицу
+
+-- TRUNCATE TABLE analyze_logs_cl.parsed_logs_sh ON CLUSTER log_sharded_replicated_cluster NO DELAY SYNC;
+--DROP VIEW analyze_logs_cl.kafka_to_parsed_logs ON CLUSTER log_sharded_replicated_cluster;
+
+CREATE MATERIALIZED VIEW analyze_logs_cl.kafka_to_parsed_logs
+TO analyze_logs_cl.parsed_logs_sh_distr
+AS
+SELECT
+    toDate(splitByChar(' ', log_string)[1]) AS created_date,
+    splitByChar(' ', log_string)[2] AS created_time,
+    splitByChar('-', splitByChar(' ', log_string)[3])[1] AS type_message,
+    toUInt32(splitByChar('-', splitByChar(' ', log_string)[3])[2]) AS message_code,
+    splitByChar(' ', log_string)[4] AS message_text
+FROM analyze_logs.kafka_source_logs
+WHERE length(log_string) > 0;
+
+# Перельём данные из не шардированной и не реплицируемой таблицы
+INSERT INTO analyze_logs_cl.parsed_logs_sh_distr SELECT * FROM analyze_logs.parsed_logs;
+
+			0 rows in set. Elapsed: 26.656 sec. Processed 2.57 million rows, 225.93 MB (96.31 thousand rows/s., 8.48 MB/s.)
+
+# Проверка на нодах
+
+select count() from analyze_logs_cl.parsed_logs_sh_distr;
+			   --count()-¬
+			1. ¦ 2567383 ¦ -- 2.57 million
+			   L----------
+select count() from analyze_logs_cl.parsed_logs_sh;
+			   --count()-¬
+			1. ¦ 1283612 ¦ -- 1.28 million
+			   L----------
+
+11. Ускорение поиска через проекции
+# Так же создадим  проекции для более быстрого поиска по дополнительным полям
+
+ALTER TABLE analyze_logs_cl.parsed_logs_sh
+ON CLUSTER log_sharded_replicated_cluster
+ADD PROJECTION message_text_proj (
+    SELECT *
+    ORDER BY message_text
+);
+
+ALTER TABLE analyze_logs_cl.parsed_logs_sh
+ON CLUSTER log_sharded_replicated_cluster
+MATERIALIZE PROJECTION message_text_proj;
+
+ALTER TABLE analyze_logs_cl.parsed_logs_sh 
+ON CLUSTER log_sharded_replicated_cluster
+ADD PROJECTION message_code_proj
+(
+    SELECT *
+    ORDER BY message_code
+);
+ALTER TABLE analyze_logs_cl.parsed_logs_sh 
+ON CLUSTER log_sharded_replicated_cluster
+MATERIALIZE PROJECTION message_code_proj;
+
+ALTER TABLE analyze_logs_cl.parsed_logs_sh 
+ON CLUSTER log_sharded_replicated_cluster
+ADD PROJECTION type_message_proj
+(
+    SELECT *
+    ORDER BY type_message
+);
+ALTER TABLE analyze_logs_cl.parsed_logs_sh 
+ON CLUSTER log_sharded_replicated_cluster
+MATERIALIZE PROJECTION type_message_proj;
+
+# Проверка проекций
+SELECT name FROM system.projections WHERE database='analyze_logs_cl' AND table='parsed_logs_sh';
+
+   --name--------------¬
+1. ¦ message_text_proj ¦
+2. ¦ message_code_proj ¦
+3. ¦ type_message_proj ¦
+   L--------------------
+
+
+12. Мониторинг
+docker run -d -p 3000:3000 --name=grafana grafana/grafana
+docker exec -it grafana grafana-cli plugins install vertamedia-clickhouse-datasource
+docker restart grafana
+
+http://192.168.1.94:3000
+admin
+admin
+# Добавляем DataSource vertamedia-clickhouse-datasource
+URL: http://192.168.1.91:8123
+User/Password: default/asd123
+
+13. Резервное копирование
+wget https://github.com/Altinity/clickhouse-backup/releases/download/v2.6.15/clickhouse-backup-linux-amd64.tar.gz
+tar -xzvf ./clickhouse-backup-linux-amd64.tar.gz
+sudo install -o root -g root -m 0755 build/linux/amd64/clickhouse-backup /usr/local/bin
+/usr/local/bin/clickhouse-backup -v
+mkdir /etc/clickhouse-backup
+chown clickhouse: -R /etc/clickhouse-backup
+sudo -u clickhouse clickhouse-backup default-config > /etc/clickhouse-backup/config.yml
+
+# создание локального бэкапа
+clickhouse-backup create logs_backup

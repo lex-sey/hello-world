@@ -1,4 +1,4 @@
-#ДЗ 13.03.2025
+#ДЗ 19.03.2025
 # storage polycy и backup
 
 # установка minio
@@ -30,7 +30,7 @@ sudo systemctl start minio
 # установка clickhouse backup
 
 wget https://github.com/Altinity/clickhouse-backup/releases/download/v2.6.15/clickhouse-backup-linux-amd64.tar.gz
-
+tar -xzvf ./clickhouse-backup-linux-amd64.tar.gz
 sudo install -o root -g root -m 0755 build/linux/amd64/clickhouse-backup /usr/local/bin
 /usr/local/bin/clickhouse-backup -v
 			Version:         2.6.15
